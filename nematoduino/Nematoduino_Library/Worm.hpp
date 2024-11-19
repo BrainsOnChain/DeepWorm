@@ -1,8 +1,6 @@
 #ifndef WORM_HPP
 #define WORM_HPP
 
-#include "Arduino.h"
-
 extern "C" {
 #include "utility/connectome.h"
 #include "utility/muscles.h"
