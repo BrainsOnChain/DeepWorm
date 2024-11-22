@@ -8,4 +8,4 @@ add_subdirectory(Nematoduino_Library)
 
 add_executable(deepworm src/main.cpp)
 
-target_link_libraries(deepworm PRIVATE nematoduino)
+target_link_libraries(deepworm PRIVATE nematoduino SDL2 SDL2_gfx)
