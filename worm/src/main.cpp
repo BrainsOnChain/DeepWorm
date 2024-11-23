@@ -54,6 +54,21 @@ int main() {
           (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
         return 0;
       }
+      if (event.type == SDL_MOUSEBUTTONDOWN) { 
+        bool pause = true;
+        while(true) {
+          while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_MOUSEBUTTONDOWN) {
+              pause = false;
+            }
+            if (event.type == SDL_QUIT ||
+                (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
+              return 0;
+            }
+          }
+          if (!pause) break;
+        }
+      }
     }
 
     worm.chemotaxis();
@@ -68,7 +83,7 @@ int main() {
     auto new_pos_x = pos_x + sin(direction * 3.14 / 180) * distance;
     auto new_pos_y = pos_y + cos(direction * 3.14 / 180) * distance;
 
-    filledCircleRGBA(renderer, new_pos_x + 400, new_pos_y + 300, 2, 255, 0, 0,
+    filledCircleRGBA(renderer, new_pos_x + 400, new_pos_y + 300, 2, 255, 50, 30,
                      255);
 
     SDL_RenderPresent(renderer);
