@@ -10,7 +10,9 @@
 
 void trigger(Worm &worm) {
   std::vector<int> triggered_neurons;
-  worm.noseTouch(1);
+  worm.noseTouch(-1);
+  worm.noseTouch(3);
+  worm.chemotaxis();
 }
 
 int main() {

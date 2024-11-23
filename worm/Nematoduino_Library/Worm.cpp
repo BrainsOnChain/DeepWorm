@@ -12,7 +12,34 @@ Worm::Worm() {
   ctm_init(&this->_connectome);
 }
 
-
+void Worm::chemotaxis(int i) {
+  switch (i) {
+    case -1:
+      this->_update(CHEMOTAXIS_AL, 1);
+      break;
+    case 1:
+      this->_update(CHEMOTAXIS_AR, 1);
+      break;
+    case -2:
+      this->_update(CHEMOTAXIS_GL, 1);
+      break;
+    case 2:
+      this->_update(CHEMOTAXIS_GR, 1);
+      break;
+    case -3:
+      this->_update(CHEMOTAXIS_IL, 1);
+      break;
+    case 3:
+      this->_update(CHEMOTAXIS_IR, 1);
+      break;
+    case -4:
+      this->_update(CHEMOTAXIS_JL, 1);
+      break;
+    case 4:
+      this->_update(CHEMOTAXIS_JR, 1);
+      break;
+  }
+}
 
 void Worm::chemotaxis() {
   this->_update(CHEMOTAXIS, CHEMOTAXIS_LEN);

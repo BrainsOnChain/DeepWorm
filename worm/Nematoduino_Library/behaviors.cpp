@@ -54,3 +54,35 @@ const uint16_t CHEMOTAXIS[] = {
   N_ADFL, N_ADFR, N_ASGR, N_ASGL, N_ASIL, N_ASIR,
   N_ASJR, N_ASJL
 };
+
+const uint16_t CHEMOTAXIS_AL[] = {
+  N_ADFL
+};
+
+const uint16_t CHEMOTAXIS_AR[] = {
+  N_ADFR
+};
+
+const uint16_t CHEMOTAXIS_GR[] = {
+  N_ASGR
+};
+
+const uint16_t CHEMOTAXIS_GL[] = {
+  N_ASGL
+};
+
+const uint16_t CHEMOTAXIS_IL[] = {
+  N_ASIL
+};
+
+const uint16_t CHEMOTAXIS_IR[] = {
+  N_ASIR
+};
+
+const uint16_t CHEMOTAXIS_JL[] = {
+  N_ASJL
+};
+
+const uint16_t CHEMOTAXIS_JR[] = {
+  N_ASJR
+};

@@ -10,8 +10,8 @@ class Worm {
   public:
     Worm();
 
-
     void chemotaxis();
+    void chemotaxis(int i);
 
     void noseTouch();
     void noseTouch(int i);
