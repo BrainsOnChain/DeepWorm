@@ -2,17 +2,64 @@
 #include <iostream>
 #include <unistd.h>
 #include <vector>
-
 #include "SDL2/SDL.h"
 #include "SDL2/SDL2_gfxPrimitives.h"
-
 #include "Worm.hpp"
 
-void trigger(Worm &worm) {
-  std::vector<int> triggered_neurons;
-  worm.noseTouch(-1);
-  worm.noseTouch(3);
-  worm.chemotaxis();
+// Predefined gradient grid
+int grid[9][9] = {
+    { -4, -3, -2, -1, -1, -2, -3, -4, -4 },
+    { -4, -3, -2, -1,  1, -2, -3, -4, -4 },
+    { -4, -3, -2,  0,  2, -2, -3, -4, -4 },
+    { -4, -3,  0,  3,  3,  2, -3, -4, -4 },
+    { -4, -3, -2,  3,  4,  3, -2, -4, -4 },
+    { -4, -3, -2,  3,  3,  3, -2, -3, -4 },
+    { -4, -3, -2, -2, -2, -2, -2, -3, -4 },
+    { -4, -3, -3, -3,  4, -3, -3, -3, -4 },
+    { -4, -4, -4, -4, -4, -4, -4, -4, -4 }
+};
+
+// Worm and apple positions
+int worm_x = 2, worm_y = 2;
+int apple_x = 7, apple_y = 6;
+
+void updateWormPosition(Worm& worm, int& worm_x, int& worm_y) {
+  int left = worm.getLeftMuscle();
+  int right = worm.getRightMuscle();
+
+  // debug output
+  std::cout << "Left muscle: " << left << ", Right muscle: " << right << std::endl;
+
+  // Simulate simple movement based on muscle activity
+  if (left > right) {
+    worm_x = std::max(0, worm_x - 1); // Move left
+  }
+  else if (right > left) {
+    worm_x = std::min(8, worm_x + 1); // Move right
+  }
+  else {
+    worm_y = std::min(8, worm_y + 1); // Move downward
+  }
+}
+
+void renderGrid(SDL_Renderer* renderer, Worm& worm) {
+  // Render the grid
+  for (int y = 0; y < 9; ++y) {
+    for (int x = 0; x < 9; ++x) {
+      if (x == worm_x && y == worm_y) {
+        // Render worm as a green circle
+        filledCircleRGBA(renderer, x * 50 + 25, y * 50 + 25, 20, 0, 255, 0, 255);
+      }
+      else if (x == apple_x && y == apple_y) {
+        // Render apple as a red circle
+        filledCircleRGBA(renderer, x * 50 + 25, y * 50 + 25, 20, 255, 0, 0, 255);
+      }
+      else {
+        // Render empty cells
+        rectangleRGBA(renderer, x * 50, y * 50, x * 50 + 50, y * 50 + 50, 255, 255, 255, 255);
+      }
+    }
+  }
 }
 
 int main() {
@@ -20,17 +67,14 @@ int main() {
     throw std::runtime_error("SDL initialization failed");
   }
 
-  auto window =
-      SDL_CreateWindow("Path Drawing", SDL_WINDOWPOS_CENTERED,
-                       SDL_WINDOWPOS_CENTERED, 1600, 1200, SDL_WINDOW_SHOWN);
+  auto window = SDL_CreateWindow("Worm Pathfinding", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 450, 450, SDL_WINDOW_SHOWN);
 
   if (!window) {
     SDL_Quit();
     throw std::runtime_error("Window creation failed");
   }
 
-  auto renderer = SDL_CreateRenderer(
-      window, -1, SDL_RENDERER_SOFTWARE | SDL_RENDERER_PRESENTVSYNC);
+  auto renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE | SDL_RENDERER_PRESENTVSYNC);
 
   if (!renderer) {
     SDL_DestroyWindow(window);
@@ -38,84 +82,51 @@ int main() {
     throw std::runtime_error("Renderer creation failed");
   }
 
-  std::cout << "Initial screen clear..." << std::endl;
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
   SDL_RenderClear(renderer);
   SDL_RenderPresent(renderer);
 
-  // Small delay to ensure window is ready
-  SDL_Delay(100);
-
-  std::cout << "Initialization complete" << std::endl;
-
   Worm worm;
+  bool running = true;
 
-  double pos_x = 0;
-  double pos_y = 0;
-
-  int direction = 0;
-
-  int debug_left = 0;
-  int debug_right = 0;
-
-  while (true) {
+  while (running) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
-      if (event.type == SDL_QUIT ||
-          (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
-        return 0;
-      }
-      if (event.type == SDL_MOUSEBUTTONDOWN) { 
-        bool pause = true;
-        while(true) {
-          while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_MOUSEBUTTONDOWN) {
-              pause = false;
-            }
-            if (event.type == SDL_QUIT ||
-                (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
-              return 0;
-            }
-          }
-          if (!pause) break;
-        }
+      if (event.type == SDL_QUIT || (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)) {
+        running = false;
       }
     }
 
-    trigger(worm);
+    // Send signal based on the grid value
+    int signal = grid[worm_y][worm_x];
+    worm.chemotaxis(signal);
 
-    // std::cout << "Left: " << worm.getLeftMuscle()
-    //           << ", Right: " << worm.getRightMuscle() << std::endl;
+    // Trigger noseTouch if near the apple
+    if (worm_x == apple_x && worm_y == apple_y) {
+      worm.noseTouch(10);
+    }
+    else {
+      worm.noseTouch(0);
+    }
 
-    direction += -(worm.getRightMuscle() - worm.getLeftMuscle());
-    direction = (direction + 360) % 360;
-    double distance = (worm.getRightMuscle() + worm.getLeftMuscle()) / 100.0;
+    // Update worm's position
+    updateWormPosition(worm, worm_x, worm_y);
 
-    auto new_pos_x = pos_x + sin(direction * 3.14 / 180) * distance;
-    auto new_pos_y = pos_y + cos(direction * 3.14 / 180) * distance;
+    // Render the grid and the worm
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
 
-    filledCircleRGBA(renderer, new_pos_x + 400, new_pos_y + 300, 2, 255, 50, 30,
-                     255);
+    renderGrid(renderer, worm);
 
     SDL_RenderPresent(renderer);
 
-    pos_x = new_pos_x;
-    pos_y = new_pos_y;
-
-    if (worm.getRightMuscle() > worm.getLeftMuscle()) {
-      debug_right++;      
-    }
-    else {
-      debug_left++;
+    // Break if the worm reaches the apple
+    if (worm_x == apple_x && worm_y == apple_y) {
+      std::cout << "The worm reached the apple!" << std::endl;
+      running = false;
     }
 
-    // std::cout << "Right: " << debug_right << ", Left: " << debug_left 
-    //           << std::endl;
-
-    // std::cout << "D: " << direction << ", X: " << pos_x << ", Y: " << pos_y
-    //           << std::endl;
-
-    usleep(16000);
+    usleep(200000);
   }
 
   SDL_DestroyRenderer(renderer);
