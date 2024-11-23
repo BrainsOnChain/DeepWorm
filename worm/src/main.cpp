@@ -1,11 +1,17 @@
 #include <cmath>
 #include <iostream>
 #include <unistd.h>
+#include <vector>
 
 #include "SDL2/SDL.h"
 #include "SDL2/SDL2_gfxPrimitives.h"
 
 #include "Worm.hpp"
+
+void trigger(Worm &worm) {
+  std::vector<int> triggered_neurons;
+  worm.noseTouch(1);
+}
 
 int main() {
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -22,7 +28,7 @@ int main() {
   }
 
   auto renderer = SDL_CreateRenderer(
-      window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+      window, -1, SDL_RENDERER_SOFTWARE | SDL_RENDERER_PRESENTVSYNC);
 
   if (!renderer) {
     SDL_DestroyWindow(window);
@@ -46,6 +52,9 @@ int main() {
   double pos_y = 0;
 
   int direction = 0;
+
+  int debug_left = 0;
+  int debug_right = 0;
 
   while (true) {
     SDL_Event event;
@@ -71,12 +80,12 @@ int main() {
       }
     }
 
-    worm.chemotaxis();
+    trigger(worm);
 
-    std::cout << "Left: " << worm.getLeftMuscle()
-              << ", Right: " << worm.getRightMuscle() << std::endl;
+    // std::cout << "Left: " << worm.getLeftMuscle()
+    //           << ", Right: " << worm.getRightMuscle() << std::endl;
 
-    direction += -(worm.getRightMuscle() - worm.getLeftMuscle()) / 5;
+    direction += -(worm.getRightMuscle() - worm.getLeftMuscle());
     direction = (direction + 360) % 360;
     double distance = (worm.getRightMuscle() + worm.getLeftMuscle()) / 100.0;
 
@@ -91,8 +100,18 @@ int main() {
     pos_x = new_pos_x;
     pos_y = new_pos_y;
 
-    std::cout << "D: " << direction << ", X: " << pos_x << ", Y: " << pos_y
-              << std::endl;
+    if (worm.getRightMuscle() > worm.getLeftMuscle()) {
+      debug_right++;      
+    }
+    else {
+      debug_left++;
+    }
+
+    // std::cout << "Right: " << debug_right << ", Left: " << debug_left 
+    //           << std::endl;
+
+    // std::cout << "D: " << direction << ", X: " << pos_x << ", Y: " << pos_y
+    //           << std::endl;
 
     usleep(16000);
   }

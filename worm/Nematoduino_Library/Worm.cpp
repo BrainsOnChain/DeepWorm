@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "Worm.hpp"
 #include "behaviors.hpp"
 
@@ -10,8 +12,45 @@ Worm::Worm() {
   ctm_init(&this->_connectome);
 }
 
+
+
 void Worm::chemotaxis() {
   this->_update(CHEMOTAXIS, CHEMOTAXIS_LEN);
+}
+
+void Worm::noseTouch(int i) {
+  switch (i) {
+    case -1:
+      this->_update(NOSE_TOUCH_FL, 1);
+      break;
+    case 1:
+      this->_update(NOSE_TOUCH_FR, 1);
+      break;
+    case -2:
+      this->_update(NOSE_TOUCH_AL, 1);
+      break;
+    case 2:
+      this->_update(NOSE_TOUCH_AR, 1);
+      break;
+    case -3:
+      this->_update(NOSE_TOUCH_VL, 1);
+      break;
+    case 3:
+      this->_update(NOSE_TOUCH_VR, 1);
+      break;
+    case -4:
+      this->_update(NOSE_TOUCH_OL, 1);
+      break;
+    case 4:
+      this->_update(NOSE_TOUCH_OR, 1);
+      break;
+    case -5:
+      this->_update(NOSE_TOUCH_OVL, 1);
+      break;
+    case 5:
+      this->_update(NOSE_TOUCH_OVR, 1);
+      break;
+  }
 }
 
 void Worm::noseTouch() {
@@ -96,6 +135,16 @@ void Worm::_update(const uint16_t* stim_neuron, int len_stim_neuron) {
     left_total = norm_body_total;
     right_total = 6*abs(neck_contribution) + norm_body_total;
   }
+
+  if (right_neck_total > left_neck_total) {
+    this->debug_right_count++;      
+  }
+  else {
+    this->debug_left_count++;
+  }
+
+  std::cout << "Right Neck: " << this->debug_right_count << ", Left neck: " << this->debug_left_count 
+            << std::endl;
 
   // Log A and B type motor neuron activity
   double motor_neuron_sum = 0;
