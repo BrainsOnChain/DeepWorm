@@ -14,30 +14,30 @@ Worm::Worm() {
 
 void Worm::chemotaxis(int i) {
   switch (i) {
-    case -1:
-      this->_update(CHEMOTAXIS_AL, 1);
-      break;
-    case 1:
-      this->_update(CHEMOTAXIS_AR, 1);
-      break;
-    case -2:
-      this->_update(CHEMOTAXIS_GL, 1);
-      break;
-    case 2:
-      this->_update(CHEMOTAXIS_GR, 1);
-      break;
-    case -3:
-      this->_update(CHEMOTAXIS_IL, 1);
-      break;
-    case 3:
-      this->_update(CHEMOTAXIS_IR, 1);
-      break;
-    case -4:
-      this->_update(CHEMOTAXIS_JL, 1);
-      break;
-    case 4:
-      this->_update(CHEMOTAXIS_JR, 1);
-      break;
+  case -1:
+    this->_update(CHEMOTAXIS_AL, 1);
+    break;
+  case 1:
+    this->_update(CHEMOTAXIS_AR, 1);
+    break;
+  case -2:
+    this->_update(CHEMOTAXIS_GL, 1);
+    break;
+  case 2:
+    this->_update(CHEMOTAXIS_GR, 1);
+    break;
+  case -3:
+    this->_update(CHEMOTAXIS_IL, 1);
+    break;
+  case 3:
+    this->_update(CHEMOTAXIS_IR, 1);
+    break;
+  case -4:
+    this->_update(CHEMOTAXIS_JL, 1);
+    break;
+  case 4:
+    this->_update(CHEMOTAXIS_JR, 1);
+    break;
   }
 }
 
@@ -47,36 +47,36 @@ void Worm::chemotaxis() {
 
 void Worm::noseTouch(int i) {
   switch (i) {
-    case -1:
-      this->_update(NOSE_TOUCH_FL, 1);
-      break;
-    case 1:
-      this->_update(NOSE_TOUCH_FR, 1);
-      break;
-    case -2:
-      this->_update(NOSE_TOUCH_AL, 1);
-      break;
-    case 2:
-      this->_update(NOSE_TOUCH_AR, 1);
-      break;
-    case -3:
-      this->_update(NOSE_TOUCH_VL, 1);
-      break;
-    case 3:
-      this->_update(NOSE_TOUCH_VR, 1);
-      break;
-    case -4:
-      this->_update(NOSE_TOUCH_OL, 1);
-      break;
-    case 4:
-      this->_update(NOSE_TOUCH_OR, 1);
-      break;
-    case -5:
-      this->_update(NOSE_TOUCH_OVL, 1);
-      break;
-    case 5:
-      this->_update(NOSE_TOUCH_OVR, 1);
-      break;
+  case -1:
+    this->_update(NOSE_TOUCH_FL, 1);
+    break;
+  case 1:
+    this->_update(NOSE_TOUCH_FR, 1);
+    break;
+  case -2:
+    this->_update(NOSE_TOUCH_AL, 1);
+    break;
+  case 2:
+    this->_update(NOSE_TOUCH_AR, 1);
+    break;
+  case -3:
+    this->_update(NOSE_TOUCH_VL, 1);
+    break;
+  case 3:
+    this->_update(NOSE_TOUCH_VR, 1);
+    break;
+  case -4:
+    this->_update(NOSE_TOUCH_OL, 1);
+    break;
+  case 4:
+    this->_update(NOSE_TOUCH_OR, 1);
+    break;
+  case -5:
+    this->_update(NOSE_TOUCH_OVL, 1);
+    break;
+  case 5:
+    this->_update(NOSE_TOUCH_OVR, 1);
+    break;
   }
 }
 
@@ -108,41 +108,41 @@ void Worm::_update(const uint16_t* stim_neuron, int len_stim_neuron) {
 
   uint16_t body_total = 0;
   // Gather totals on body muscles
-  for(int i = 0; i < BODY_MUSCLES; i++) {
+  for (int i = 0; i < BODY_MUSCLES; i++) {
     uint16_t left_id = READ_WORD(left_body_muscle, i);
     uint16_t right_id = READ_WORD(right_body_muscle, i);
 
     int16_t left_val = ctm_get_weight(ctm, left_id);
     int16_t right_val = ctm_get_weight(ctm, right_id);
 
-    if(left_val < 0) {
+    if (left_val < 0) {
       left_val = 0;
     }
 
-    if(right_val < 0) {
+    if (right_val < 0) {
       right_val = 0;
     }
 
     body_total += (left_val + right_val);
   }
 
-  uint16_t norm_body_total = 255.0 * ((float) body_total) / 600.0;
+  uint16_t norm_body_total = 255.0 * ((float)body_total) / 600.0;
 
   // Gather total for neck muscles
   uint16_t left_neck_total = 0;
   uint16_t right_neck_total = 0;
-  for(int i = 0; i < NECK_MUSCLES; i++) {
+  for (int i = 0; i < NECK_MUSCLES; i++) {
     uint16_t left_id = READ_WORD(left_neck_muscle, i);
     uint16_t right_id = READ_WORD(right_neck_muscle, i);
 
     int16_t left_val = ctm_get_weight(ctm, left_id);
     int16_t right_val = ctm_get_weight(ctm, right_id);
 
-    if(left_val < 0) {
+    if (left_val < 0) {
       left_val = 0;
     }
 
-    if(right_val < 0) {
+    if (right_val < 0) {
       right_val = 0;
     }
 
@@ -154,24 +154,24 @@ void Worm::_update(const uint16_t* stim_neuron, int len_stim_neuron) {
   int32_t neck_contribution = left_neck_total - right_neck_total;
   int32_t left_total;
   int32_t right_total;
-  if(neck_contribution < 0) {
-    left_total = 6*abs(neck_contribution) + norm_body_total;
+  if (neck_contribution < 0) {
+    left_total = 6 * abs(neck_contribution) + norm_body_total;
     right_total = norm_body_total;
   }
   else {
     left_total = norm_body_total;
-    right_total = 6*abs(neck_contribution) + norm_body_total;
+    right_total = 6 * abs(neck_contribution) + norm_body_total;
   }
 
   if (right_neck_total > left_neck_total) {
-    this->debug_right_count++;      
+    this->debug_right_count++;
   }
   else {
     this->debug_left_count++;
   }
 
-  std::cout << "Right Neck: " << this->debug_right_count << ", Left neck: " << this->debug_left_count 
-            << std::endl;
+  // std::cout << "Right Neck: " << this->debug_right_count << ", Left neck: " << this->debug_left_count 
+  //           << std::endl;
 
   // Log A and B type motor neuron activity
   double motor_neuron_sum = 0;
@@ -183,7 +183,7 @@ void Worm::_update(const uint16_t* stim_neuron, int len_stim_neuron) {
   }
   */
 
-  for(int i = 0; i < MOTOR_A; i++) {
+  for (int i = 0; i < MOTOR_A; i++) {
     uint16_t id = READ_WORD(motor_neuron_a, i);
     motor_neuron_sum += ctm_get_discharge(ctm, id);
   }
@@ -193,9 +193,9 @@ void Worm::_update(const uint16_t* stim_neuron, int len_stim_neuron) {
   const int avg_window = 15;
   double motor_neuron_percent = 100.0 * motor_neuron_sum / motor_total;
 
-  this->_motorFireAvg = (motor_neuron_percent + (avg_window*this->_motorFireAvg))/(avg_window + 1.0);
+  this->_motorFireAvg = (motor_neuron_percent + (avg_window * this->_motorFireAvg)) / (avg_window + 1.0);
 
-  if(this->_motorFireAvg > 19.0) { // Magic number read off from c_matoduino simulation
+  if (this->_motorFireAvg > 19.0) { // Magic number read off from c_matoduino simulation
     left_total *= -1;
     right_total *= -1;
   }
