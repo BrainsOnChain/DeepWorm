@@ -96,12 +96,42 @@
         "type": "github"
       }
     },
+    "oyster": {
+      "inputs": {
+        "fenix": [
+          "fenix"
+        ],
+        "naersk": [
+          "naersk"
+        ],
+        "nitro-util": [
+          "nitro-util"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1732545020,
+        "narHash": "sha256-9AbgnuVbIRlLa0igS0k9VATdb4TxUo4+QlItq6Vukzs=",
+        "owner": "marlinprotocol",
+        "repo": "oyster-monorepo",
+        "rev": "f1828aed8ddafa0bb9c4eb2fe5000d5540a7a3de",
+        "type": "github"
+      },
+      "original": {
+        "owner": "marlinprotocol",
+        "repo": "oyster-monorepo",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "fenix": "fenix",
         "naersk": "naersk",
         "nitro-util": "nitro-util",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "oyster": "oyster"
       }
     },
     "rust-analyzer-src": {
