@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worm Simulation</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Worm Price Movement Response</h1>
+    <canvas id="wormCanvas" width="800" height="800"></canvas>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const canvas = document.getElementById("wormCanvas");
+            const ctx = canvas.getContext("2d");
+
+            // Fetch worm positions from the server
+            fetch('/worm')
+                .then(response => response.json())
+                .then(positions => {
+                    if (positions.length === 0) return;
+
+                    // Determine the bounds of the positions
+                    const minX = Math.min(...positions.map(pos => pos.x));
+                    const maxX = Math.max(...positions.map(pos => pos.x));
+                    const minY = Math.min(...positions.map(pos => pos.y));
+                    const maxY = Math.max(...positions.map(pos => pos.y));
+
+                    // Padding around the grid
+                    const padding = 20;
+
+                    // Scale factors for fitting positions to the canvas
+                    const scaleX = (canvas.width - 2 * padding) / (maxX - minX || 1);
+                    const scaleY = (canvas.height - 2 * padding) / (maxY - minY || 1);
+
+                    // Use the smaller scale to maintain aspect ratio
+                    const scale = Math.min(scaleX, scaleY);
+
+                    // Clear the canvas
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    // Animate the path drawing
+                    let index = 0;
+
+                    function drawNext() {
+                        if (index >= positions.length) return;
+
+                        const pos = positions[index];
+                        const x = padding + (pos.x - minX) * scale;
+                        const y = canvas.height - (padding + (pos.y - minY) * scale); // Flip y-axis for canvas
+
+                        // Draw a small dot at the current position
+                        ctx.fillStyle = "blue";
+                        ctx.beginPath();
+                        ctx.arc(x, y, 3, 0, Math.PI * 2); // Small dot
+                        ctx.fill();
+
+                        // Draw the path segment
+                        if (index > 0) {
+                            const prevPos = positions[index - 1];
+                            const prevX = padding + (prevPos.x - minX) * scale;
+                            const prevY = canvas.height - (padding + (prevPos.y - minY) * scale);
+
+                            ctx.strokeStyle = "green";
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.moveTo(prevX, prevY);
+                            ctx.lineTo(x, y);
+                            ctx.stroke();
+                        }
+
+                        index++;
+                        setTimeout(drawNext, 50); // Delay between each point (adjust speed here)
+                    }
+
+                    drawNext();
+
+                    // Highlight the last position after animation
+                    setTimeout(() => {
+                        const lastPos = positions[positions.length - 1];
+                        const lastX = padding + (lastPos.x - minX) * scale;
+                        const lastY = canvas.height - (padding + (lastPos.y - minY) * scale);
+                        ctx.fillStyle = "red";
+                        ctx.beginPath();
+                        ctx.arc(lastX, lastY, 5, 0, Math.PI * 2); // Larger circle for the last position
+                        ctx.fill();
+                    }, positions.length * 100); // Wait until animation completes
+                })
+                .catch(error => {
+                    console.error("Error fetching worm positions:", error);
+                });
+        });
+    </script>
+</body>
+
+</html>

@@ -16,12 +16,24 @@ extern int Worm_getRightMuscle(Worm* worm);
 */
 import "C"
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"net/http"
+	"sync"
+
+	"github.com/go-chi/chi"
 )
 
 const (
 	magnification = 1_000_000
+)
+
+var (
+	wormPositions = []position{}
+
+	// create a mutex to lock the wormPositions slice
+	mutex = &sync.Mutex{}
 )
 
 func main() {
@@ -33,12 +45,28 @@ func main() {
 	wormPriceFetcher := newPriceFetcher("Worm", wormAddr)
 	go wormPriceFetcher.fetchPrice()
 
+	// start a http server to serve the worm positions
+	r := chi.NewRouter()
+	r.Get("/worm", func(w http.ResponseWriter, r *http.Request) {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		// Marshal the wormPositions slice to JSON
+		json.NewEncoder(w).Encode(wormPositions)
+	})
+
+	// serve the html in /app directory
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "app/index.html")
+	})
+	go http.ListenAndServe(":8080", r)
+
 	runPriceWorm(wormPriceFetcher, worm)
 }
 
 func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
 	// Initialize position and tracking
-	p := position{x: 0, y: 0, direction: 0}
+	var p position
 
 	// Fetch the price of worm and compare to previous price
 	currentPrice := <-fetcher.priceChan
@@ -47,6 +75,7 @@ func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
 		currentPrice = price
 
 		if priceChange == 0 { // no change in price no worm movement
+			// priceChange = 0.00001 // uncomment to speed up testing
 			continue
 		}
 
@@ -54,6 +83,7 @@ func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
 		intChange := int(priceChange * magnification)
 		fmt.Println("Price change:", intChange)
 
+		mutex.Lock()
 		for i := 0; i < intChange; i++ {
 			C.Worm_chemotaxis(worm)
 			C.Worm_noseTouch(worm)
@@ -64,28 +94,30 @@ func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
 			)
 
 			p.update(angle, magnitude)
+			wormPositions = append(wormPositions, p)
 			fmt.Printf("%+v\n", p)
 		}
+		mutex.Unlock()
 	}
 }
 
 type position struct {
-	x, y      float64
-	direction float64
+	X         float64 `json:"x"`
+	Y         float64 `json:"y"`
+	Direction float64 `json:"direction"`
 }
 
 func (p *position) update(angle, magnitude float64) {
-	// Update the direction
-	p.direction += angle
-	if p.direction < 0 {
-		p.direction += 360
-	} else if p.direction >= 360 {
-		p.direction -= 360
+	p.Direction += angle
+	if p.Direction < 0 {
+		p.Direction += 360
+	} else if p.Direction >= 360 {
+		p.Direction -= 360
 	}
 
-	// Update the position based on the direction
-	p.x += magnitude * math.Cos(p.direction*math.Pi/180) // Convert to radians
-	p.y += magnitude * math.Sin(p.direction*math.Pi/180)
+	// Update the position based on the Direction
+	p.X += magnitude * math.Cos(p.Direction*math.Pi/180) // Convert to radians
+	p.Y += magnitude * math.Sin(p.Direction*math.Pi/180)
 }
 
 // movement outputs the movement in the form of angle and magnitude based on the
