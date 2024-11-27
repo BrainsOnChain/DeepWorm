@@ -1,7 +1,7 @@
 add_subdirectory(utility)
 
-file(GLOB SOURCES "*.cpp")
-file(GLOB HEADERS "*.hpp")
+file(GLOB SOURCES "*.cpp" "*.c")
+file(GLOB HEADERS "*.hpp" "*.h")
 
 add_library(nematoduino ${SOURCES} ${HEADERS})
 
