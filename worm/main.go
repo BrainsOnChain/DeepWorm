@@ -6,9 +6,9 @@ package main
 #include "Worm.h"
 #include <stdlib.h>
 
-// Declare the C functions
-extern Worm* Worm_new();
-extern void Worm_delete(Worm* worm);
+// Declare the C functions based on Worm.h
+extern Worm* Worm_Worm();
+extern void Worm_destroy(Worm* worm);
 extern void Worm_chemotaxis(Worm* worm);
 extern void Worm_noseTouch(Worm* worm);
 extern int Worm_getLeftMuscle(Worm* worm);
@@ -19,8 +19,8 @@ import "fmt"
 
 func main() {
 	// Create a new Worm instance
-	worm := C.Worm_new()
-	defer C.Worm_delete(worm) // Ensure proper cleanup
+	worm := C.Worm_Worm()
+	defer C.Worm_destroy(worm) // Ensure proper cleanup
 
 	// Trigger chemotaxis and noseTouch signals
 	C.Worm_chemotaxis(worm)
