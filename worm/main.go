@@ -34,7 +34,7 @@ func main() {
 	var points plotter.XYs
 
 	// Run the simulation
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000; i++ {
 		C.Worm_chemotaxis(worm)
 		C.Worm_noseTouch(worm)
 
