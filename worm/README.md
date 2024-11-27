@@ -6,23 +6,15 @@ Implementation of the worm's brain and movements. It is based on [nematoduino](h
 
 - CMake
 - C++ compiler (gcc or clang)
+- Go 1.22.5 or higher
 
-## Build
-
-This project uses CMake to build the simulator.
+## Build & Run
 
 ```bash
-# create a build dir
-mkdir -p build && cd build
+$ make build-worm-c
 
-# cmake
-cmake .. -DCMAKE_BUILD_TYPE=Release
-
-# build
-make
+$ go run .
 ```
-
-You should have a `deepworm` binary in the build directory.
 
 ## Usage
 
