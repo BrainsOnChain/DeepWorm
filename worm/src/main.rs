@@ -1,8 +1,10 @@
-use std::ffi::{c_int, c_void};
 use std::thread::sleep;
 use std::time::Duration;
 
+use libc::{c_int, c_void};
+
 #[link(name = "nematoduino")]
+#[link(name = "utility")]
 extern "C" {
     fn Worm_Worm() -> *mut c_void;
     fn Worm_destroy(worm: *mut c_void);
