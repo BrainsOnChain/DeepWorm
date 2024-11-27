@@ -21,8 +21,7 @@ int main() {
     throw std::runtime_error("Window creation failed");
   }
 
-  auto renderer = SDL_CreateRenderer(
-      window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+  auto renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
   if (!renderer) {
     SDL_DestroyWindow(window);
