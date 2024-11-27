@@ -36,15 +36,17 @@ func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
 	// Initialize position and tracking
 	p := position{x: 0, y: 0, direction: 0}
 
-	// Run the simulation
+	// Fetch the price of worm and compare to previous price
 	currentPrice := <-fetcher.priceChan
 	for price := range fetcher.priceChan {
 		priceChange := math.Abs(price.priceUSD - currentPrice.priceUSD)
 		currentPrice = price
 
-		if priceChange == 0 {
+		if priceChange == 0 { // no change in price no worm movement
 			continue
 		}
+
+		// Magnify the price change to simulate worm movement
 		intChange := int(priceChange * 1_000_000)
 		fmt.Println("Price change:", intChange)
 
@@ -52,9 +54,10 @@ func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
 			C.Worm_chemotaxis(worm)
 			C.Worm_noseTouch(worm)
 
-			left := float64(C.Worm_getLeftMuscle(worm))
-			right := float64(C.Worm_getRightMuscle(worm))
-			angle, magnitude := movement(left, right)
+			angle, magnitude := movement(
+				float64(C.Worm_getLeftMuscle(worm)),
+				float64(C.Worm_getRightMuscle(worm)),
+			)
 
 			p.update(angle, magnitude)
 			fmt.Printf("%+v\n", p)
