@@ -20,6 +20,10 @@ import (
 	"math"
 )
 
+const (
+	magnification = 1_000_000
+)
+
 func main() {
 	// Create a new Worm instance
 	worm := C.Worm_Worm()
@@ -47,7 +51,7 @@ func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
 		}
 
 		// Magnify the price change to simulate worm movement
-		intChange := int(priceChange * 1_000_000)
+		intChange := int(priceChange * magnification)
 		fmt.Println("Price change:", intChange)
 
 		for i := 0; i < intChange; i++ {
