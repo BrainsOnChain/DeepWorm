@@ -18,10 +18,6 @@ import "C"
 import (
 	"fmt"
 	"math"
-
-	"gonum.org/v1/plot"
-	"gonum.org/v1/plot/plotter"
-	"gonum.org/v1/plot/vg"
 )
 
 func main() {
@@ -29,29 +25,40 @@ func main() {
 	worm := C.Worm_Worm()
 	defer C.Worm_destroy(worm) // Ensure proper cleanup
 
+	// Create a worm PriceFetcher instance
+	wormPriceFetcher := newPriceFetcher("Worm", wormAddr)
+	go wormPriceFetcher.fetchPrice()
+
+	runPriceWorm(wormPriceFetcher, worm)
+}
+
+func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
 	// Initialize position and tracking
 	p := position{x: 0, y: 0, direction: 0}
-	var points plotter.XYs
 
 	// Run the simulation
-	for i := 0; i < 1000; i++ {
-		C.Worm_chemotaxis(worm)
-		C.Worm_noseTouch(worm)
+	currentPrice := <-fetcher.priceChan
+	for price := range fetcher.priceChan {
+		priceChange := math.Abs(price.priceUSD - currentPrice.priceUSD)
+		currentPrice = price
 
-		left := float64(C.Worm_getLeftMuscle(worm))
-		right := float64(C.Worm_getRightMuscle(worm))
-		angle, magnitude := movement(left, right)
+		if priceChange == 0 {
+			continue
+		}
+		intChange := int(priceChange * 1_000_000)
+		fmt.Println("Price change:", intChange)
 
-		p.update(angle, magnitude)
-		fmt.Printf("%+v\n", p)
+		for i := 0; i < intChange; i++ {
+			C.Worm_chemotaxis(worm)
+			C.Worm_noseTouch(worm)
 
-		// Append the current position to points
-		points = append(points, plotter.XY{X: p.x, Y: p.y})
-	}
+			left := float64(C.Worm_getLeftMuscle(worm))
+			right := float64(C.Worm_getRightMuscle(worm))
+			angle, magnitude := movement(left, right)
 
-	// Plot the points
-	if err := plotPath(points); err != nil {
-		fmt.Println("Error plotting:", err)
+			p.update(angle, magnitude)
+			fmt.Printf("%+v\n", p)
+		}
 	}
 }
 
@@ -82,21 +89,4 @@ func movement(left, right float64) (float64, float64) {
 	magnitude := (right + left) / 2
 
 	return angle, magnitude
-}
-
-// plotPath generates a plot of the worm's movement
-func plotPath(points plotter.XYs) error {
-	p := plot.New()
-	p.Title.Text = "Worm Movement"
-	p.X.Label.Text = "X"
-	p.Y.Label.Text = "Y"
-
-	line, err := plotter.NewLine(points)
-	if err != nil {
-		return err
-	}
-	p.Add(line)
-
-	// Save the plot to a file
-	return p.Save(6*vg.Inch, 6*vg.Inch, "worm_movement.png")
 }
