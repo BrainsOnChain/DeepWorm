@@ -23,6 +23,8 @@ import (
 	"sync"
 
 	"github.com/go-chi/chi"
+
+	_ "embed"
 )
 
 const (
@@ -35,6 +37,9 @@ var (
 	// create a mutex to lock the wormPositions slice
 	mutex = &sync.Mutex{}
 )
+
+// go:embed app/index.html
+var html []byte
 
 func main() {
 	// Create a new Worm instance
@@ -57,7 +62,7 @@ func main() {
 
 	// serve the html in /app directory
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "app/index.html")
+		w.Write(html)
 	})
 	go http.ListenAndServe(":8080", r)
 
@@ -75,8 +80,8 @@ func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
 		currentPrice = price
 
 		if priceChange == 0 { // no change in price no worm movement
-			// priceChange = 0.00001 // uncomment to speed up testing
-			continue
+			priceChange = 0.00001 // uncomment to speed up testing
+			// continue
 		}
 
 		// Magnify the price change to simulate worm movement
