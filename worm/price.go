@@ -9,10 +9,7 @@ import (
 )
 
 const (
-	solAddr = "So11111111111111111111111111111111111111112"
-
-	jarvAddr = "CmpuL8k9KY3NrpfDRoJrVmuwd1zRMFRUxX55avyGpump"
-	fartAddr = "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump"
+	solAddr  = "So11111111111111111111111111111111111111112"
 	wormAddr = "DwDtUqBZJtbRpdjsFw3N7YKB5epocSru25BGcVhfcYtg"
 
 	// Jupiter API
@@ -26,16 +23,14 @@ type priceFetcher struct {
 	client    *http.Client
 	ticker    *time.Ticker
 	coinAddr  string
-	coinName  string
 	priceChan chan price
 }
 
-func newPriceFetcher(name, addr string) *priceFetcher {
+func newPriceFetcher(ca string) *priceFetcher {
 	return &priceFetcher{
 		client:    &http.Client{},
 		ticker:    time.NewTicker(priceFetchInterval),
-		coinAddr:  addr,
-		coinName:  name,
+		coinAddr:  ca,
 		priceChan: make(chan price),
 	}
 }
@@ -67,14 +62,13 @@ func (pf *priceFetcher) fetchPrice() error {
 			return fmt.Errorf("error decoding response: %w", err)
 		}
 
-		coinP := newPrice(pf.coinName, pf.coinAddr, data.Data[pf.coinAddr].Price)
-		pf.priceChan <- coinP
+		pf.priceChan <- newPrice(pf.coinAddr, data.Data[pf.coinAddr].Price)
 	}
 
 	return nil
 }
 
-func newPrice(name, mint, priceUSD string) price {
+func newPrice(mint, priceUSD string) price {
 	p, err := strconv.ParseFloat(priceUSD, 64)
 	if err != nil {
 		fmt.Println("Error converting price to float64:", err)
@@ -82,7 +76,6 @@ func newPrice(name, mint, priceUSD string) price {
 	}
 
 	return price{
-		name:     name,
 		mint:     mint,
 		priceUSD: p,
 		ts:       time.Now(),
@@ -90,12 +83,7 @@ func newPrice(name, mint, priceUSD string) price {
 }
 
 type price struct {
-	name     string
 	mint     string
 	priceUSD float64
 	ts       time.Time
-}
-
-func (p price) String() string {
-	return fmt.Sprintf("%s @ %s - $%.5f", p.name, p.ts.Format(time.Stamp), p.priceUSD)
 }
