@@ -1,2 +1,5 @@
 build/
 .cache
+target/
+result/
+vendor/

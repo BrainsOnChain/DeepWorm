@@ -6,9 +6,7 @@
 
 #include <stdint.h>
 
-extern "C" {
 #include "utility/defines.h"
-}
 
 extern const uint16_t NOSE_TOUCH[];
 extern const uint16_t NOSE_TOUCH_FR[];
