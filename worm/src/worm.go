@@ -1,8 +1,8 @@
-package main
+package src
 
 /*
-#cgo CFLAGS: -I./nematoduino
-#cgo LDFLAGS: -L. -lnematoduino
+#cgo CFLAGS: -I../nematoduino
+#cgo LDFLAGS: -L.. -lnematoduino
 #include "Worm.h"
 #include <stdlib.h>
 
@@ -27,15 +27,21 @@ const (
 	magnification = 1_000_000
 )
 
-var (
-	wormPositions = []position{}
-	mutex         = &sync.Mutex{} // create a mutex to lock the wormPositions slice
-)
+type Worm struct {
+	cworm     *C.Worm
+	mu        *sync.Mutex
+	positions []position
+}
 
-func runWorm(fetcher *priceFetcher) {
-	// Create a new Worm instance
-	worm := C.Worm_Worm()
-	defer C.Worm_destroy(worm) // Ensure proper cleanup
+func NewWorm() *Worm {
+	return &Worm{
+		cworm: C.Worm_Worm(),
+		mu:    &sync.Mutex{},
+	}
+}
+
+func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
+	defer C.Worm_destroy(w.cworm) // Ensure proper cleanup
 	var p position
 
 	// Fetch the price of worm and compare to previous price
@@ -52,26 +58,36 @@ func runWorm(fetcher *priceFetcher) {
 		intChange := int(priceChange * magnification)
 		zap.S().Infow("price change", "change", intChange)
 
-		mutex.Lock()
+		w.mu.Lock()
 		for i := 0; i < intChange; i++ {
 			// 80% change of chemotaxis and 20% of nose touch for each cycle
 			if rand.Intn(100) < 80 {
-				C.Worm_chemotaxis(worm)
+				C.Worm_chemotaxis(w.cworm)
 			} else {
-				C.Worm_noseTouch(worm)
+				C.Worm_noseTouch(w.cworm)
 			}
 
 			angle, magnitude := movement(
-				float64(C.Worm_getLeftMuscle(worm)),
-				float64(C.Worm_getRightMuscle(worm)),
+				float64(C.Worm_getLeftMuscle(w.cworm)),
+				float64(C.Worm_getRightMuscle(w.cworm)),
 			)
 
 			p.update(angle, magnitude)
-			wormPositions = append(wormPositions, p)
+			w.positions = append(w.positions, p)
 		}
-		mutex.Unlock()
+		w.mu.Unlock()
 	}
 }
+
+func (w *Worm) Positions() []position {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return w.positions
+}
+
+// -----------------------------------------------------------------------------
+// Position and movement functions
 
 type position struct {
 	X         float64 `json:"x"`

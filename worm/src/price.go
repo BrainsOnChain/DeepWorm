@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 
 const (
 	solAddr  = "So11111111111111111111111111111111111111112"
-	wormAddr = "DwDtUqBZJtbRpdjsFw3N7YKB5epocSru25BGcVhfcYtg"
+	WormAddr = "DwDtUqBZJtbRpdjsFw3N7YKB5epocSru25BGcVhfcYtg"
 
 	// Jupiter API
 	host          = "https://api.jup.ag"
@@ -26,7 +26,7 @@ type priceFetcher struct {
 	priceChan chan price
 }
 
-func newPriceFetcher(ca string) *priceFetcher {
+func NewPriceFetcher(ca string) *priceFetcher {
 	return &priceFetcher{
 		client:    &http.Client{},
 		ticker:    time.NewTicker(priceFetchInterval),
@@ -35,7 +35,7 @@ func newPriceFetcher(ca string) *priceFetcher {
 	}
 }
 
-func (pf *priceFetcher) fetchPrice() error {
+func (pf *priceFetcher) Fetch() error {
 	url := fmt.Sprintf("%s%s?ids=%s,%s", host, priceEndpoint, pf.coinAddr, solAddr)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

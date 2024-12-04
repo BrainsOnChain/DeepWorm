@@ -1,23 +1,20 @@
 package main
 
 import (
-	_ "embed"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"path/filepath"
+	"sync"
 
+	"github.com/brainsonchain/deepworm/src"
 	"github.com/go-chi/chi"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-// go:embed app/index.html
-var html []byte
+var mutex = &sync.Mutex{} // create a mutex to lock the wormPositions slice
 
 func main() {
-
-	fmt.Println(html)
 
 	// -------------------------------------------------------------------------
 	// Initialize the logger
@@ -39,22 +36,24 @@ func main() {
 	// -------------------------------------------------------------------------
 	// Create a worm PriceFetcher instance
 	log.Info("creating worm price fetcher")
-	wormPriceFetcher := newPriceFetcher(wormAddr)
+	wormPriceFetcher := src.NewPriceFetcher(src.WormAddr)
 	go func() {
-		errChan <- wormPriceFetcher.fetchPrice()
-	}()
-
-	// -------------------------------------------------------------------------
-	// Create the server
-	log.Info("creating server")
-	s := newServer(log)
-	go func() {
-		errChan <- s.start()
+		errChan <- wormPriceFetcher.Fetch()
 	}()
 
 	// -------------------------------------------------------------------------
 	// Run the worm
-	go runWorm(wormPriceFetcher)
+	log.Info("creating worm")
+	worm := src.NewWorm()
+	go worm.Run(wormPriceFetcher, mutex)
+
+	// -------------------------------------------------------------------------
+	// Create the server
+	log.Info("creating server")
+	s := newServer(log, worm)
+	go func() {
+		errChan <- s.start()
+	}()
 
 	// -------------------------------------------------------------------------
 	// Catch errors from the goroutines
@@ -66,14 +65,16 @@ func main() {
 }
 
 type server struct {
-	log *zap.Logger
-	r   *chi.Mux
+	log  *zap.Logger
+	r    *chi.Mux
+	worm *src.Worm
 }
 
-func newServer(l *zap.Logger) *server {
+func newServer(l *zap.Logger, w *src.Worm) *server {
 	s := &server{
-		log: l,
-		r:   chi.NewRouter(),
+		log:  l,
+		r:    chi.NewRouter(),
+		worm: w,
 	}
 
 	// Serve index.html in the /app directory
@@ -84,8 +85,7 @@ func newServer(l *zap.Logger) *server {
 	})
 
 	s.r.Get("/worm", func(w http.ResponseWriter, r *http.Request) {
-		mutex.Lock()
-		defer mutex.Unlock()
+		wormPositions := s.worm.Positions()
 
 		s.log.Info("serving worm positions")
 		json.NewEncoder(w).Encode(wormPositions)
