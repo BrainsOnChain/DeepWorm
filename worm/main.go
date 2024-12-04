@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/rand"
 	"net/http"
 	"sync"
 
@@ -64,13 +65,13 @@ func main() {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write(html)
 	})
+
 	go http.ListenAndServe(":8080", r)
 
 	runPriceWorm(wormPriceFetcher, worm)
 }
 
 func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
-	// Initialize position and tracking
 	var p position
 
 	// Fetch the price of worm and compare to previous price
@@ -80,18 +81,21 @@ func runPriceWorm(fetcher *priceFetcher, worm *C.Worm) {
 		currentPrice = price
 
 		if priceChange == 0 { // no change in price no worm movement
-			priceChange = 0.00001 // uncomment to speed up testing
-			// continue
+			continue
 		}
 
 		// Magnify the price change to simulate worm movement
 		intChange := int(priceChange * magnification)
-		fmt.Println("Price change:", intChange)
 
 		mutex.Lock()
 		for i := 0; i < intChange; i++ {
-			C.Worm_chemotaxis(worm)
-			C.Worm_noseTouch(worm)
+			// 80% change of chemotaxis and 20% chance of nose touch for each
+			// cycle
+			if rand.Intn(100) < 80 {
+				C.Worm_chemotaxis(worm)
+			} else {
+				C.Worm_noseTouch(worm)
+			}
 
 			angle, magnitude := movement(
 				float64(C.Worm_getLeftMuscle(worm)),
