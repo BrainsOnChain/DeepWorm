@@ -1,5 +1,4 @@
 #include "Worm.h"
-
 #include "behaviors.h"
 
 Worm *Worm_Worm() {
@@ -98,6 +97,17 @@ void Worm_update(Worm *worm, const uint16_t *stim_neuron, int len_stim_neuron) {
     left_total = norm_body_total;
     right_total = 6 * abs(neck_contribution) + norm_body_total;
   }
+
+  // This breaks the make command
+  // if (right_neck_total > left_neck_total) {
+  //   this->debug_right_count++;      
+  // }
+  // else {
+  //   this->debug_left_count++;
+  // }
+
+  // std::cout << "Right Neck: " << this->debug_right_count << ", Left neck: " << this->debug_left_count 
+  //           << std::endl;
 
   // Log A and B type motor neuron activity
   double motor_neuron_sum = 0;
