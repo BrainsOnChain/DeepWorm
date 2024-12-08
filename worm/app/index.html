@@ -15,10 +15,11 @@
             background-color: #1e1e1e;
             color: white;
             font-family: Arial, sans-serif;
+            overflow: hidden;
         }
 
         h1 {
-            margin-bottom: 10px;
+            margin: 10px 0;
         }
 
         canvas {
@@ -29,13 +30,28 @@
 
         #tooltip {
             position: absolute;
-            background-color: rgba(0, 0, 0, 0.8);
+            background-color: rgba(0, 0, 0, 0.9);
             color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 12px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: "Segoe UI", Arial, sans-serif;
             pointer-events: none;
             display: none;
+            white-space: pre-wrap;
+            text-align: left;
+        }
+
+        #currentPosition {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: "Segoe UI", Arial, sans-serif;
         }
     </style>
 </head>
@@ -44,14 +60,16 @@
     <h1>Worm Price Movement Response</h1>
     <canvas id="wormCanvas"></canvas>
     <div id="tooltip"></div>
+    <div id="currentPosition">Current Position: (N/A, N/A)</div>
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const canvas = document.getElementById("wormCanvas");
             const ctx = canvas.getContext("2d");
             const tooltip = document.getElementById("tooltip");
+            const currentPositionBox = document.getElementById("currentPosition");
 
-            const positionsToShow = 500; // Max positions to trace
+            const positionsToShow = 1000; // Max positions to trace
 
             // Resize canvas to fill the window
             function resizeCanvas() {
@@ -67,14 +85,28 @@
                 .then(positions => {
                     if (positions.length === 0) return;
 
+                    console.log(positions)
+
                     const minX = Math.min(...positions.map(pos => pos.x));
                     const maxX = Math.max(...positions.map(pos => pos.x));
                     const minY = Math.min(...positions.map(pos => pos.y));
                     const maxY = Math.max(...positions.map(pos => pos.y));
 
-                    const padding = 20;
-                    const scaleX = (canvas.width - 2 * padding) / (maxX - minX || 1);
-                    const scaleY = (canvas.height - 2 * padding) / (maxY - minY || 1);
+                    const padding = 20; // Determine the bounds of the positions with padding
+                    const paddingFactor = 0.1; // Add 10% padding to the space
+                    const rangeX = maxX - minX;
+                    const rangeY = maxY - minY;
+
+                    const paddedMinX = minX - rangeX * paddingFactor;
+                    const paddedMaxX = maxX + rangeX * paddingFactor;
+                    const paddedMinY = minY - rangeY * paddingFactor;
+                    const paddedMaxY = maxY + rangeY * paddingFactor;
+
+                    // Scale factors for fitting positions to the canvas
+                    const scaleX = (canvas.width - 2 * padding) / (paddedMaxX - paddedMinX || 1);
+                    const scaleY = (canvas.height - 2 * padding) / (paddedMaxY - paddedMinY || 1);
+
+                    // Use the smaller scale to maintain aspect ratio
                     const scale = Math.min(scaleX, scaleY);
 
                     function draw() {
@@ -115,6 +147,9 @@
                         ctx.textAlign = "center";
                         ctx.textBaseline = "middle";
                         ctx.fillText("🪱", lastX, lastY);
+
+                        // Update the persistent current position display
+                        currentPositionBox.textContent = `Current Position: (${lastPos.x.toFixed(2)}, ${lastPos.y.toFixed(2)})`;
                     }
 
                     draw();
@@ -137,7 +172,16 @@
                                 tooltip.style.display = "block";
                                 tooltip.style.left = `${event.pageX + 10}px`;
                                 tooltip.style.top = `${event.pageY + 10}px`;
-                                tooltip.textContent = `Position: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)})`;
+                                // Update hover display logic
+                                tooltip.innerHTML = `
+                                    <strong>Position:</strong><br>
+                                    X: ${pos.x.toFixed(2)}<br>
+                                    Y: ${pos.y.toFixed(2)}<br>
+                                    Direction: ${pos.direction.toFixed(2)}°<br>
+                                    <strong>Price Info:</strong><br>
+                                    Price (USD): $${pos.priceInfo.priceUSD.toFixed(4)}<br>
+                                    Change (USD): $${pos.priceInfo.changeUSD.toFixed(5)}
+                                `;
                             }
                         });
                     });

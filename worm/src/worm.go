@@ -47,15 +47,16 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 	// Fetch the price of worm and compare to previous price
 	currentPrice := <-fetcher.priceChan
 	for price := range fetcher.priceChan {
-		priceChange := math.Abs(price.priceUSD - currentPrice.priceUSD)
+		priceChange := price.priceUSD - currentPrice.priceUSD
+		priceChangeAbs := math.Abs(priceChange)
 		currentPrice = price
 
-		if priceChange == 0 { // no change in price no worm movement
+		if priceChangeAbs == 0 { // no change in price no worm movement
 			continue
 		}
 
 		// Magnify the price change to simulate worm movement
-		intChange := int(priceChange * magnification)
+		intChange := int(priceChangeAbs * magnification)
 		zap.S().Infow("price change", "change", intChange)
 
 		w.mu.Lock()
@@ -72,7 +73,7 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 				float64(C.Worm_getRightMuscle(w.cworm)),
 			)
 
-			p.update(angle, magnitude)
+			p.update(angle, magnitude, currentPrice.priceUSD, priceChange)
 			w.positions = append(w.positions, p)
 		}
 		w.mu.Unlock()
@@ -93,9 +94,13 @@ type position struct {
 	X         float64 `json:"x"`
 	Y         float64 `json:"y"`
 	Direction float64 `json:"direction"`
+	PriceInfo struct {
+		PriceUSD  float64 `json:"priceUSD"`
+		ChangeUSD float64 `json:"changeUSD"`
+	} `json:"priceInfo"`
 }
 
-func (p *position) update(angle, magnitude float64) {
+func (p *position) update(angle, magnitude, price, priceChange float64) {
 	p.Direction += angle
 	if p.Direction < 0 {
 		p.Direction += 360
@@ -106,6 +111,9 @@ func (p *position) update(angle, magnitude float64) {
 	// Update the position based on the Direction
 	p.X += magnitude * math.Cos(p.Direction*math.Pi/180) // Convert to radians
 	p.Y += magnitude * math.Sin(p.Direction*math.Pi/180)
+
+	p.PriceInfo.PriceUSD = price
+	p.PriceInfo.ChangeUSD = priceChange
 }
 
 // movement outputs the movement in the form of angle and magnitude based on the
