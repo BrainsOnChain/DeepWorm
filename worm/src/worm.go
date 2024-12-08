@@ -61,7 +61,7 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 		w.mu.Lock()
 		for i := 0; i < intChange; i++ {
 			// 80% change of chemotaxis and 20% of nose touch for each cycle
-			if rand.Intn(100) < 80 {
+			if rand.Intn(100) < 50 {
 				C.Worm_chemotaxis(w.cworm)
 			} else {
 				C.Worm_noseTouch(w.cworm)

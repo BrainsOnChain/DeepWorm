@@ -6,20 +6,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Worm Simulation</title>
     <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #1e1e1e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+        }
+
         canvas {
-            border: 1px solid black;
+            border: 1px solid #555;
+            display: block;
+            background-color: #000;
+        }
+
+        #tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
         }
     </style>
 </head>
 
 <body>
     <h1>Worm Price Movement Response</h1>
-    <canvas id="wormCanvas" width="800" height="800"></canvas>
+    <canvas id="wormCanvas"></canvas>
+    <div id="tooltip"></div>
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const canvas = document.getElementById("wormCanvas");
             const ctx = canvas.getContext("2d");
+            const tooltip = document.getElementById("tooltip");
+
+            const positionsToShow = 500; // Max positions to trace
+
+            // Resize canvas to fill the window
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight - document.querySelector("h1").offsetHeight;
+            }
+            window.addEventListener("resize", resizeCanvas);
+            resizeCanvas();
 
             // Fetch worm positions from the server
             fetch('/worm')
@@ -27,71 +67,84 @@
                 .then(positions => {
                     if (positions.length === 0) return;
 
-                    // Determine the bounds of the positions
                     const minX = Math.min(...positions.map(pos => pos.x));
                     const maxX = Math.max(...positions.map(pos => pos.x));
                     const minY = Math.min(...positions.map(pos => pos.y));
                     const maxY = Math.max(...positions.map(pos => pos.y));
 
-                    // Padding around the grid
                     const padding = 20;
-
-                    // Scale factors for fitting positions to the canvas
                     const scaleX = (canvas.width - 2 * padding) / (maxX - minX || 1);
                     const scaleY = (canvas.height - 2 * padding) / (maxY - minY || 1);
-
-                    // Use the smaller scale to maintain aspect ratio
                     const scale = Math.min(scaleX, scaleY);
 
-                    // Clear the canvas
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    function draw() {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                    // Animate the path drawing
-                    let index = 0;
+                        // Draw the most recent positionsToShow positions
+                        const recentPositions = positions.slice(-positionsToShow);
 
-                    function drawNext() {
-                        if (index >= positions.length) return;
+                        recentPositions.forEach((pos, index) => {
+                            const x = padding + (pos.x - minX) * scale;
+                            const y = canvas.height - (padding + (pos.y - minY) * scale);
 
-                        const pos = positions[index];
-                        const x = padding + (pos.x - minX) * scale;
-                        const y = canvas.height - (padding + (pos.y - minY) * scale); // Flip y-axis for canvas
-
-                        // Draw a small dot at the current position
-                        ctx.fillStyle = "blue";
-                        ctx.beginPath();
-                        ctx.arc(x, y, 3, 0, Math.PI * 2); // Small dot
-                        ctx.fill();
-
-                        // Draw the path segment
-                        if (index > 0) {
-                            const prevPos = positions[index - 1];
-                            const prevX = padding + (prevPos.x - minX) * scale;
-                            const prevY = canvas.height - (padding + (prevPos.y - minY) * scale);
-
-                            ctx.strokeStyle = "green";
-                            ctx.lineWidth = 2;
+                            ctx.fillStyle = index === recentPositions.length - 1 ? "red" : "green"; // Red for the latest position
                             ctx.beginPath();
-                            ctx.moveTo(prevX, prevY);
-                            ctx.lineTo(x, y);
-                            ctx.stroke();
-                        }
+                            ctx.arc(x, y, 3, 0, Math.PI * 2);
+                            ctx.fill();
 
-                        index++;
-                        setTimeout(drawNext, 50); // Delay between each point (adjust speed here)
-                    }
+                            // Draw the path segment
+                            if (index > 0) {
+                                const prevPos = recentPositions[index - 1];
+                                const prevX = padding + (prevPos.x - minX) * scale;
+                                const prevY = canvas.height - (padding + (prevPos.y - minY) * scale);
 
-                    drawNext();
+                                ctx.strokeStyle = "green";
+                                ctx.lineWidth = 2;
+                                ctx.beginPath();
+                                ctx.moveTo(prevX, prevY);
+                                ctx.lineTo(x, y);
+                                ctx.stroke();
+                            }
+                        });
 
-                    // Highlight the last position after animation
-                    setTimeout(() => {
-                        const lastPos = positions[positions.length - 1];
+                        // Show 🪱 emoji at the latest position
+                        const lastPos = recentPositions[recentPositions.length - 1];
                         const lastX = padding + (lastPos.x - minX) * scale;
                         const lastY = canvas.height - (padding + (lastPos.y - minY) * scale);
-                        ctx.fillStyle = "red";
-                        ctx.beginPath();
-                        ctx.arc(lastX, lastY, 5, 0, Math.PI * 2); // Larger circle for the last position
-                        ctx.fill();
-                    }, positions.length * 100); // Wait until animation completes
+                        ctx.font = "30px Arial";
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText("🪱", lastX, lastY);
+                    }
+
+                    draw();
+
+                    // Enable hover tooltip
+                    canvas.addEventListener("mousemove", (event) => {
+                        const rect = canvas.getBoundingClientRect();
+                        const mouseX = event.clientX - rect.left;
+                        const mouseY = event.clientY - rect.top;
+
+                        tooltip.style.display = "none";
+
+                        // Find the closest point
+                        positions.slice(-positionsToShow).forEach(pos => {
+                            const x = padding + (pos.x - minX) * scale;
+                            const y = canvas.height - (padding + (pos.y - minY) * scale);
+
+                            // Check if mouse is close to a position
+                            if (Math.hypot(mouseX - x, mouseY - y) < 5) {
+                                tooltip.style.display = "block";
+                                tooltip.style.left = `${event.pageX + 10}px`;
+                                tooltip.style.top = `${event.pageY + 10}px`;
+                                tooltip.textContent = `Position: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)})`;
+                            }
+                        });
+                    });
+
+                    canvas.addEventListener("mouseleave", () => {
+                        tooltip.style.display = "none";
+                    });
                 })
                 .catch(error => {
                     console.error("Error fetching worm positions:", error);
