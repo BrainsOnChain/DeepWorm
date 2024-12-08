@@ -74,8 +74,8 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 			)
 
 			p.update(angle, magnitude, currentPrice.priceUSD, priceChange)
-			w.positions = append(w.positions, p)
 		}
+		w.positions = append(w.positions, p)
 		w.mu.Unlock()
 	}
 }

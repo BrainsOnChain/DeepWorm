@@ -149,7 +149,15 @@
                         ctx.fillText("🪱", lastX, lastY);
 
                         // Update the persistent current position display
-                        currentPositionBox.textContent = `Current Position: (${lastPos.x.toFixed(2)}, ${lastPos.y.toFixed(2)})`;
+                        currentPositionBox.innerHTML = `
+                            <strong>Current Position:</strong><br>
+                            X: ${lastPos.x.toFixed(2)}<br>
+                            Y: ${lastPos.y.toFixed(2)}<br>
+                            Direction: ${lastPos.direction.toFixed(2)}°<br>
+                            <strong>Price Info:</strong><br>
+                            Price (USD): $${lastPos.priceInfo.priceUSD.toFixed(4)}<br>
+                            Change (USD): $${lastPos.priceInfo.changeUSD.toFixed(7)}
+                        `;
                     }
 
                     draw();
