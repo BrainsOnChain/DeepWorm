@@ -5,53 +5,70 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Worm Simulation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --neon-green: #39ff14;
+            --dark-bg: #000000;
+            --tooltip-bg: rgba(0, 20, 0, 0.9);
+        }
+
         body {
             margin: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background-color: #1e1e1e;
-            color: white;
-            font-family: Arial, sans-serif;
+            background-color: var(--dark-bg);
+            color: var(--neon-green);
+            font-family: 'JetBrains Mono', monospace;
             overflow: hidden;
         }
 
         h1 {
             margin: 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--neon-green);
         }
 
         canvas {
-            border: 1px solid #555;
+            border: 1px solid var(--neon-green);
             display: block;
-            background-color: #000;
+            background-color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-green);
         }
 
         #tooltip {
             position: absolute;
-            background-color: rgba(0, 0, 0, 0.9);
-            color: white;
+            background-color: var(--tooltip-bg);
+            color: var(--neon-green);
             padding: 5px 8px;
             border-radius: 4px;
             font-size: 12px;
-            font-family: "Segoe UI", Arial, sans-serif;
+            font-family: 'JetBrains Mono', monospace;
             pointer-events: none;
             display: none;
             white-space: pre-wrap;
             text-align: left;
+            border: 1px solid var(--neon-green);
+            box-shadow: 0 0 5px var(--neon-green);
         }
 
         #currentPosition {
             position: fixed;
             top: 10px;
             right: 10px;
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
+            background-color: var(--tooltip-bg);
+            color: var(--neon-green);
             padding: 10px;
-            border-radius: 8px;
+            border-radius: 4px;
             font-size: 14px;
-            font-family: "Segoe UI", Arial, sans-serif;
+            font-family: 'JetBrains Mono', monospace;
+            border: 1px solid var(--neon-green);
+            box-shadow: 0 0 5px var(--neon-green);
         }
     </style>
 </head>
@@ -132,9 +149,8 @@
                     tooltip.style.display = 'block';
                     tooltip.style.left = `${event.clientX + 10}px`;
                     tooltip.style.top = `${event.clientY + 10}px`;
-                    tooltip.innerHTML = `X: ${closestPoint.pos.x.toFixed(2)} Y: ${closestPoint.pos.y.toFixed(2)}
-Dir: ${closestPoint.pos.direction.toFixed(2)}°
-$${closestPoint.pos.priceInfo.priceUSD.toFixed(4)} (${closestPoint.pos.priceInfo.changeUSD >= 0 ? '+' : ''}${closestPoint.pos.priceInfo.changeUSD.toFixed(7)})`;
+                    tooltip.innerHTML = `X: ${closestPoint.pos.x.toFixed(0)} Y: ${closestPoint.pos.y.toFixed(0)} Dir: ${closestPoint.pos.direction.toFixed(0)}°
+Price: $${closestPoint.pos.priceInfo.priceUSD.toFixed(4)} (${closestPoint.pos.priceInfo.changeUSD >= 0 ? '+' : ''}${closestPoint.pos.priceInfo.changeUSD.toFixed(7)})`;
                 } else {
                     tooltip.style.display = 'none';
                 }
@@ -188,7 +204,7 @@ $${closestPoint.pos.priceInfo.priceUSD.toFixed(4)} (${closestPoint.pos.priceInfo
 
                     if (isLast) {
                         // Draw worm emoji for the last point
-                        ctx.font = '24px Arial';
+                        ctx.font = '28px Arial';
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
                         ctx.fillText('🪱', x, y);
