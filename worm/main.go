@@ -87,7 +87,7 @@ func newServer(l *zap.Logger, w *src.Worm) *server {
 	s.r.Get("/worm", func(w http.ResponseWriter, r *http.Request) {
 		wormPositions := s.worm.Positions()
 
-		s.log.Info("serving worm positions")
+		s.log.Info("serving worm positions", zap.Int("count", len(wormPositions)))
 		json.NewEncoder(w).Encode(wormPositions)
 	})
 

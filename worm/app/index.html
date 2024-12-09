@@ -5,97 +5,320 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Worm Simulation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --neon-green: #39ff14;
+            --dark-bg: #000000;
+            --tooltip-bg: rgba(0, 20, 0, 0.9);
+        }
+
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--dark-bg);
+            color: var(--neon-green);
+            font-family: 'JetBrains Mono', monospace;
+            overflow: hidden;
+        }
+
+        h1 {
+            margin: 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--neon-green);
+        }
+
         canvas {
-            border: 1px solid black;
+            border: 1px solid var(--neon-green);
+            display: block;
+            background-color: var(--dark-bg);
+            box-shadow: 0 0 10px var(--neon-green);
+        }
+
+        #tooltip {
+            position: absolute;
+            background-color: var(--tooltip-bg);
+            color: var(--neon-green);
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            pointer-events: none;
+            display: none;
+            white-space: pre-wrap;
+            text-align: left;
+            border: 1px solid var(--neon-green);
+            box-shadow: 0 0 5px var(--neon-green);
+        }
+
+        #currentPosition {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: var(--tooltip-bg);
+            color: var(--neon-green);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: 'JetBrains Mono', monospace;
+            border: 1px solid var(--neon-green);
+            box-shadow: 0 0 5px var(--neon-green);
         }
     </style>
 </head>
 
 <body>
     <h1>Worm Price Movement Response</h1>
-    <canvas id="wormCanvas" width="800" height="800"></canvas>
+    <canvas id="wormCanvas"></canvas>
+    <div id="tooltip"></div>
+    <div id="currentPosition">Current Position: (N/A, N/A)</div>
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const canvas = document.getElementById("wormCanvas");
             const ctx = canvas.getContext("2d");
+            const tooltip = document.getElementById("tooltip");
+            const currentPositionBox = document.getElementById("currentPosition");
 
-            // Fetch worm positions from the server
+            const plottedPositions = new Map(); // Store plotted positions by ID
+            let allPositions = [];
+            let scale, padding, minX, maxX, minY, maxY;
+
+            const MAX_POSITIONS = 1000;
+
+            // Resize canvas to fill the window
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight - document.querySelector("h1").offsetHeight;
+            }
+            window.addEventListener("resize", resizeCanvas);
+            resizeCanvas();
+
+            // Function to initialize scaling and padding
+            function initializeScaleBounds(positions) {
+                minX = Math.min(...positions.map(pos => pos.x));
+                maxX = Math.max(...positions.map(pos => pos.x));
+                minY = Math.min(...positions.map(pos => pos.y));
+                maxY = Math.max(...positions.map(pos => pos.y));
+
+                const paddingFactor = 0.1;
+                const rangeX = maxX - minX;
+                const rangeY = maxY - minY;
+
+                minX -= rangeX * paddingFactor;
+                maxX += rangeX * paddingFactor;
+                minY -= rangeY * paddingFactor;
+                maxY += rangeY * paddingFactor;
+
+                padding = 20;
+                const scaleX = (canvas.width - 2 * padding) / (maxX - minX || 1);
+                const scaleY = (canvas.height - 2 * padding) / (maxY - minY || 1);
+                scale = Math.min(scaleX, scaleY);
+            }
+
+            // Add mouse move handler for tooltip
+            canvas.addEventListener('mousemove', (event) => {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+
+                // Find closest point
+                let closestPoint = null;
+                let minDistance = 10; // Minimum distance to show tooltip
+
+                allPositions.forEach(pos => {
+                    const x = padding + (pos.x - minX) * scale;
+                    const y = canvas.height - (padding + (pos.y - minY) * scale);
+
+                    const distance = Math.sqrt(
+                        Math.pow(mouseX - x, 2) +
+                        Math.pow(mouseY - y, 2)
+                    );
+
+                    if (distance < minDistance) {
+                        closestPoint = { pos, x, y };
+                        minDistance = distance;
+                    }
+                });
+
+                if (closestPoint) {
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = `${event.clientX + 10}px`;
+                    tooltip.style.top = `${event.clientY + 10}px`;
+                    tooltip.innerHTML = `X: ${closestPoint.pos.x.toFixed(0)} Y: ${closestPoint.pos.y.toFixed(0)} Dir: ${closestPoint.pos.direction.toFixed(0)}°
+Price: $${closestPoint.pos.priceInfo.priceUSD.toFixed(4)} (${closestPoint.pos.priceInfo.changeUSD >= 0 ? '+' : ''}${closestPoint.pos.priceInfo.changeUSD.toFixed(7)})`;
+                } else {
+                    tooltip.style.display = 'none';
+                }
+            });
+
+            canvas.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
+            });
+
+            // Modified drawPositions to include rounded lines and worm emoji
+            function drawPositions() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw lines first
+                ctx.beginPath();
+                ctx.strokeStyle = "green";
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                allPositions.forEach((pos, index) => {
+                    const x = padding + (pos.x - minX) * scale;
+                    const y = canvas.height - (padding + (pos.y - minY) * scale);
+
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        // Draw direct line to ensure points are connected properly
+                        const prevPos = allPositions[index - 1];
+                        const prevX = padding + (prevPos.x - minX) * scale;
+                        const prevY = canvas.height - (padding + (prevPos.y - minY) * scale);
+
+                        // Use bezier curve to create smooth lines while maintaining point accuracy
+                        const midX = (prevX + x) / 2;
+                        const midY = (prevY + y) / 2;
+
+                        ctx.bezierCurveTo(
+                            prevX + (midX - prevX) * 0.5, prevY,  // First control point
+                            x - (midX - x) * 0.5, y,              // Second control point
+                            x, y                                   // End point
+                        );
+                    }
+                });
+                ctx.stroke();
+
+                // Draw points
+                allPositions.forEach((pos, index) => {
+                    const x = padding + (pos.x - minX) * scale;
+                    const y = canvas.height - (padding + (pos.y - minY) * scale);
+                    const isLast = index === allPositions.length - 1;
+
+                    if (isLast) {
+                        // Draw worm emoji for the last point
+                        ctx.font = '28px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('🪱', x, y);
+                    } else {
+                        // Draw regular points
+                        ctx.fillStyle = "green";
+                        ctx.beginPath();
+                        ctx.arc(x, y, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+
+                // Update current position display
+                const lastPos = allPositions[allPositions.length - 1];
+                updateCurrentPosition(lastPos);
+            }
+
+            function updateCurrentPosition(pos) {
+                currentPositionBox.innerHTML = `
+                    <strong>Current Position 🪱</strong><br>
+                    X: ${pos.x.toFixed(2)}<br>
+                    Y: ${pos.y.toFixed(2)}<br>
+                    Direction: ${pos.direction.toFixed(2)}°<br>
+                    <strong>Price Info:</strong><br>
+                    Price (USD): $${pos.priceInfo.priceUSD.toFixed(4)}<br>
+                    Change (USD): $${pos.priceInfo.changeUSD.toFixed(7)}
+                `;
+            }
+
+            // New function to animate new positions
+            function animateNewPositions(newPositions) {
+                let currentIndex = 0;
+
+                function drawNext() {
+                    if (currentIndex >= newPositions.length) return;
+
+                    const pos = newPositions[currentIndex];
+                    allPositions.push(pos);
+                    drawPositions();
+
+                    currentIndex++;
+                    setTimeout(drawNext, 100); // Animate each position with 100ms delay
+                }
+
+                drawNext();
+            }
+
+            // Modified fetch and update function
+            function fetchAndUpdate() {
+                fetch('/worm')
+                    .then(response => response.json())
+                    .then(positions => {
+                        if (positions.length === 0) return;
+
+                        // Find new positions by iterating backwards until we find an existing position
+                        const newPositions = [];
+                        for (let i = positions.length - 1; i >= 0; i--) {
+                            const pos = positions[i];
+                            if (plottedPositions.has(pos.id)) {
+                                break;
+                            }
+                            newPositions.unshift(pos); // Add to front to maintain order
+                        }
+
+                        // If we have new positions, update the display
+                        if (newPositions.length > 0) {
+                            // Update plotted positions map
+                            newPositions.forEach(pos => plottedPositions.set(pos.id, pos));
+
+                            // Add new positions and trim if necessary
+                            allPositions.push(...newPositions);
+                            if (allPositions.length > MAX_POSITIONS) {
+                                const trimCount = allPositions.length - MAX_POSITIONS;
+                                allPositions = allPositions.slice(trimCount);
+
+                                // Also remove from plottedPositions map
+                                const remainingIds = new Set(allPositions.map(pos => pos.id));
+                                for (const id of plottedPositions.keys()) {
+                                    if (!remainingIds.has(id)) {
+                                        plottedPositions.delete(id);
+                                    }
+                                }
+                            }
+
+                            // Update scale bounds with all positions
+                            initializeScaleBounds(allPositions);
+                            // Animate new positions
+                            animateNewPositions(newPositions);
+                        }
+                    })
+                    .catch(error => console.error("Error during polling:", error));
+            }
+
+            // Initial fetch and setup
             fetch('/worm')
                 .then(response => response.json())
                 .then(positions => {
                     if (positions.length === 0) return;
 
-                    // Determine the bounds of the positions
-                    const minX = Math.min(...positions.map(pos => pos.x));
-                    const maxX = Math.max(...positions.map(pos => pos.x));
-                    const minY = Math.min(...positions.map(pos => pos.y));
-                    const maxY = Math.max(...positions.map(pos => pos.y));
+                    // Take only the last MAX_POSITIONS positions
+                    const initialPositions = positions.slice(-MAX_POSITIONS);
 
-                    // Padding around the grid
-                    const padding = 20;
+                    // Initialize with first batch of positions
+                    initializeScaleBounds(initialPositions);
+                    initialPositions.forEach(pos => plottedPositions.set(pos.id, pos));
+                    allPositions = initialPositions;
+                    drawPositions();
 
-                    // Scale factors for fitting positions to the canvas
-                    const scaleX = (canvas.width - 2 * padding) / (maxX - minX || 1);
-                    const scaleY = (canvas.height - 2 * padding) / (maxY - minY || 1);
-
-                    // Use the smaller scale to maintain aspect ratio
-                    const scale = Math.min(scaleX, scaleY);
-
-                    // Clear the canvas
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                    // Animate the path drawing
-                    let index = 0;
-
-                    function drawNext() {
-                        if (index >= positions.length) return;
-
-                        const pos = positions[index];
-                        const x = padding + (pos.x - minX) * scale;
-                        const y = canvas.height - (padding + (pos.y - minY) * scale); // Flip y-axis for canvas
-
-                        // Draw a small dot at the current position
-                        ctx.fillStyle = "blue";
-                        ctx.beginPath();
-                        ctx.arc(x, y, 3, 0, Math.PI * 2); // Small dot
-                        ctx.fill();
-
-                        // Draw the path segment
-                        if (index > 0) {
-                            const prevPos = positions[index - 1];
-                            const prevX = padding + (prevPos.x - minX) * scale;
-                            const prevY = canvas.height - (padding + (prevPos.y - minY) * scale);
-
-                            ctx.strokeStyle = "green";
-                            ctx.lineWidth = 2;
-                            ctx.beginPath();
-                            ctx.moveTo(prevX, prevY);
-                            ctx.lineTo(x, y);
-                            ctx.stroke();
-                        }
-
-                        index++;
-                        setTimeout(drawNext, 50); // Delay between each point (adjust speed here)
-                    }
-
-                    drawNext();
-
-                    // Highlight the last position after animation
-                    setTimeout(() => {
-                        const lastPos = positions[positions.length - 1];
-                        const lastX = padding + (lastPos.x - minX) * scale;
-                        const lastY = canvas.height - (padding + (lastPos.y - minY) * scale);
-                        ctx.fillStyle = "red";
-                        ctx.beginPath();
-                        ctx.arc(lastX, lastY, 5, 0, Math.PI * 2); // Larger circle for the last position
-                        ctx.fill();
-                    }, positions.length * 100); // Wait until animation completes
+                    // Start polling
+                    setInterval(fetchAndUpdate, 10000);
                 })
-                .catch(error => {
-                    console.error("Error fetching worm positions:", error);
-                });
+                .catch(error => console.error("Error fetching worm positions:", error));
         });
     </script>
 </body>
