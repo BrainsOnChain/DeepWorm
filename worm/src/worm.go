@@ -16,6 +16,7 @@ extern int Worm_getRightMuscle(Worm* worm);
 */
 import "C"
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"sync"
@@ -60,9 +61,8 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 		intChange := int(priceChangeAbs * magnification)
 		zap.S().Infow("price change", "change", intChange)
 
-		w.mu.Lock()
 		for i := 0; i < intChange; i++ {
-			// 80% change of chemotaxis and 20% of nose touch for each cycle
+			// 50% chance of either chemotaxis or nosetouch
 			if rand.Intn(100) < 50 {
 				C.Worm_chemotaxis(w.cworm)
 			} else {
@@ -76,8 +76,17 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 
 			p.update(angle, magnitude)
 		}
-		p.setMD(price.priceUSD, priceChange)
+		p.setMD(price.priceUSD, priceChange) // only set the meta data when saving the postion
+
+		w.mu.Lock()
 		w.positions = append(w.positions, p)
+
+		fmt.Println("len of positions: ", len(w.positions))
+		// if the positions slice is too large, remove the first 100 elements
+		if len(w.positions) > 5_000 {
+			w.positions = w.positions[100:]
+		}
+
 		w.mu.Unlock()
 	}
 }
