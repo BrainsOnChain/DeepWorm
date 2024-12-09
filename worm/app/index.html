@@ -32,9 +32,9 @@
             position: absolute;
             background-color: rgba(0, 0, 0, 0.9);
             color: white;
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 14px;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 12px;
             font-family: "Segoe UI", Arial, sans-serif;
             pointer-events: none;
             display: none;
@@ -103,30 +103,101 @@
                 scale = Math.min(scaleX, scaleY);
             }
 
-            // Modified drawPositions to work with all positions
+            // Add mouse move handler for tooltip
+            canvas.addEventListener('mousemove', (event) => {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+
+                // Find closest point
+                let closestPoint = null;
+                let minDistance = 10; // Minimum distance to show tooltip
+
+                allPositions.forEach(pos => {
+                    const x = padding + (pos.x - minX) * scale;
+                    const y = canvas.height - (padding + (pos.y - minY) * scale);
+
+                    const distance = Math.sqrt(
+                        Math.pow(mouseX - x, 2) +
+                        Math.pow(mouseY - y, 2)
+                    );
+
+                    if (distance < minDistance) {
+                        closestPoint = { pos, x, y };
+                        minDistance = distance;
+                    }
+                });
+
+                if (closestPoint) {
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = `${event.clientX + 10}px`;
+                    tooltip.style.top = `${event.clientY + 10}px`;
+                    tooltip.innerHTML = `X: ${closestPoint.pos.x.toFixed(2)} Y: ${closestPoint.pos.y.toFixed(2)}
+Dir: ${closestPoint.pos.direction.toFixed(2)}°
+$${closestPoint.pos.priceInfo.priceUSD.toFixed(4)} (${closestPoint.pos.priceInfo.changeUSD >= 0 ? '+' : ''}${closestPoint.pos.priceInfo.changeUSD.toFixed(7)})`;
+                } else {
+                    tooltip.style.display = 'none';
+                }
+            });
+
+            canvas.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
+            });
+
+            // Modified drawPositions to include rounded lines and worm emoji
             function drawPositions() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw lines first
+                ctx.beginPath();
+                ctx.strokeStyle = "green";
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
 
                 allPositions.forEach((pos, index) => {
                     const x = padding + (pos.x - minX) * scale;
                     const y = canvas.height - (padding + (pos.y - minY) * scale);
 
-                    ctx.fillStyle = index === allPositions.length - 1 ? "red" : "green";
-                    ctx.beginPath();
-                    ctx.arc(x, y, 3, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    if (index > 0) {
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        // Draw direct line to ensure points are connected properly
                         const prevPos = allPositions[index - 1];
                         const prevX = padding + (prevPos.x - minX) * scale;
                         const prevY = canvas.height - (padding + (prevPos.y - minY) * scale);
 
-                        ctx.strokeStyle = "green";
-                        ctx.lineWidth = 2;
+                        // Use bezier curve to create smooth lines while maintaining point accuracy
+                        const midX = (prevX + x) / 2;
+                        const midY = (prevY + y) / 2;
+
+                        ctx.bezierCurveTo(
+                            prevX + (midX - prevX) * 0.5, prevY,  // First control point
+                            x - (midX - x) * 0.5, y,              // Second control point
+                            x, y                                   // End point
+                        );
+                    }
+                });
+                ctx.stroke();
+
+                // Draw points
+                allPositions.forEach((pos, index) => {
+                    const x = padding + (pos.x - minX) * scale;
+                    const y = canvas.height - (padding + (pos.y - minY) * scale);
+                    const isLast = index === allPositions.length - 1;
+
+                    if (isLast) {
+                        // Draw worm emoji for the last point
+                        ctx.font = '24px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('🪱', x, y);
+                    } else {
+                        // Draw regular points
+                        ctx.fillStyle = "green";
                         ctx.beginPath();
-                        ctx.moveTo(prevX, prevY);
-                        ctx.lineTo(x, y);
-                        ctx.stroke();
+                        ctx.arc(x, y, 3, 0, Math.PI * 2);
+                        ctx.fill();
                     }
                 });
 
@@ -137,7 +208,7 @@
 
             function updateCurrentPosition(pos) {
                 currentPositionBox.innerHTML = `
-                    <strong>Current Position:</strong><br>
+                    <strong>Current Position 🪱</strong><br>
                     X: ${pos.x.toFixed(2)}<br>
                     Y: ${pos.y.toFixed(2)}<br>
                     Direction: ${pos.direction.toFixed(2)}°<br>
