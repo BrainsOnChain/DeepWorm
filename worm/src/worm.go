@@ -16,7 +16,6 @@ extern int Worm_getRightMuscle(Worm* worm);
 */
 import "C"
 import (
-	"fmt"
 	"math"
 	"math/rand"
 	"sync"
@@ -81,7 +80,6 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 		w.mu.Lock()
 		w.positions = append(w.positions, p)
 
-		fmt.Println("len of positions: ", len(w.positions))
 		// if the positions slice is too large, remove the first 100 elements
 		if len(w.positions) > 5_000 {
 			w.positions = w.positions[100:]
