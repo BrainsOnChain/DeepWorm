@@ -90,6 +90,8 @@
             let allPositions = [];
             let scale, padding, minX, maxX, minY, maxY;
 
+            const MAX_POSITIONS = 1000;
+
             // Resize canvas to fill the window
             function resizeCanvas() {
                 canvas.width = window.innerWidth;
@@ -259,15 +261,38 @@ Price: $${closestPoint.pos.priceInfo.priceUSD.toFixed(4)} (${closestPoint.pos.pr
                     .then(positions => {
                         if (positions.length === 0) return;
 
-                        // Find new positions
-                        const newPositions = positions.filter(pos => !plottedPositions.has(pos.id));
+                        // Find new positions by iterating backwards until we find an existing position
+                        const newPositions = [];
+                        for (let i = positions.length - 1; i >= 0; i--) {
+                            const pos = positions[i];
+                            if (plottedPositions.has(pos.id)) {
+                                break;
+                            }
+                            newPositions.unshift(pos); // Add to front to maintain order
+                        }
 
-                        // Update plotted positions map
-                        newPositions.forEach(pos => plottedPositions.set(pos.id, pos));
-
+                        // If we have new positions, update the display
                         if (newPositions.length > 0) {
+                            // Update plotted positions map
+                            newPositions.forEach(pos => plottedPositions.set(pos.id, pos));
+
+                            // Add new positions and trim if necessary
+                            allPositions.push(...newPositions);
+                            if (allPositions.length > MAX_POSITIONS) {
+                                const trimCount = allPositions.length - MAX_POSITIONS;
+                                allPositions = allPositions.slice(trimCount);
+
+                                // Also remove from plottedPositions map
+                                const remainingIds = new Set(allPositions.map(pos => pos.id));
+                                for (const id of plottedPositions.keys()) {
+                                    if (!remainingIds.has(id)) {
+                                        plottedPositions.delete(id);
+                                    }
+                                }
+                            }
+
                             // Update scale bounds with all positions
-                            initializeScaleBounds(positions);
+                            initializeScaleBounds(allPositions);
                             // Animate new positions
                             animateNewPositions(newPositions);
                         }
@@ -281,10 +306,13 @@ Price: $${closestPoint.pos.priceInfo.priceUSD.toFixed(4)} (${closestPoint.pos.pr
                 .then(positions => {
                     if (positions.length === 0) return;
 
+                    // Take only the last MAX_POSITIONS positions
+                    const initialPositions = positions.slice(-MAX_POSITIONS);
+
                     // Initialize with first batch of positions
-                    initializeScaleBounds(positions);
-                    positions.forEach(pos => plottedPositions.set(pos.id, pos));
-                    allPositions = positions;
+                    initializeScaleBounds(initialPositions);
+                    initialPositions.forEach(pos => plottedPositions.set(pos.id, pos));
+                    allPositions = initialPositions;
                     drawPositions();
 
                     // Start polling
