@@ -20,6 +20,7 @@ import (
 	"math/rand"
 	"sync"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -73,8 +74,9 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 				float64(C.Worm_getRightMuscle(w.cworm)),
 			)
 
-			p.update(angle, magnitude, currentPrice.priceUSD, priceChange)
+			p.update(angle, magnitude)
 		}
+		p.setMD(price.priceUSD, priceChange)
 		w.positions = append(w.positions, p)
 		w.mu.Unlock()
 	}
@@ -91,6 +93,7 @@ func (w *Worm) Positions() []position {
 // Position and movement functions
 
 type position struct {
+	ID        string  `json:"id"`
 	X         float64 `json:"x"`
 	Y         float64 `json:"y"`
 	Direction float64 `json:"direction"`
@@ -100,7 +103,13 @@ type position struct {
 	} `json:"priceInfo"`
 }
 
-func (p *position) update(angle, magnitude, price, priceChange float64) {
+func (p *position) setMD(price, priceChange float64) {
+	p.ID = uuid.New().String()
+	p.PriceInfo.PriceUSD = price
+	p.PriceInfo.ChangeUSD = priceChange
+}
+
+func (p *position) update(angle, magnitude float64) {
 	p.Direction += angle
 	if p.Direction < 0 {
 		p.Direction += 360
@@ -111,9 +120,6 @@ func (p *position) update(angle, magnitude, price, priceChange float64) {
 	// Update the position based on the Direction
 	p.X += magnitude * math.Cos(p.Direction*math.Pi/180) // Convert to radians
 	p.Y += magnitude * math.Sin(p.Direction*math.Pi/180)
-
-	p.PriceInfo.PriceUSD = price
-	p.PriceInfo.ChangeUSD = priceChange
 }
 
 // movement outputs the movement in the form of angle and magnitude based on the
