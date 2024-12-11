@@ -61,6 +61,7 @@ contract Worm {
 
         wormState.leftMuscle = _leftMuscle;
         wormState.rightMuscle = _rightMuscle;
+        lastUpdatedTimestamp = block.timestamp;
 
         emit WormStateUpdated(_deltaX, _deltaY, _positionPrice, _leftMuscle, _rightMuscle, _positionTimestamp);
     }
@@ -77,6 +78,7 @@ contract Worm {
 
         wormState.leftMuscle = _leftMuscle;
         wormState.rightMuscle = _rightMuscle;
+        lastUpdatedTimestamp = block.timestamp;
 
         emit WormStateUpdatedByUser(_triggeringUser, _deltaX, _deltaY, _leftMuscle, _rightMuscle, _positionTimestamp);
     }
