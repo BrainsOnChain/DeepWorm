@@ -16,7 +16,7 @@ const (
 	host          = "https://api.jup.ag"
 	priceEndpoint = "/price/v2"
 
-	priceFetchInterval = 2 * time.Second
+	priceFetchInterval = 4 * time.Second
 )
 
 type priceFetcher struct {

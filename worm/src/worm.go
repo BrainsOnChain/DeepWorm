@@ -20,6 +20,7 @@ import (
 	"math/rand"
 	"sync"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -47,21 +48,21 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 	// Fetch the price of worm and compare to previous price
 	currentPrice := <-fetcher.priceChan
 	for price := range fetcher.priceChan {
-		priceChange := math.Abs(price.priceUSD - currentPrice.priceUSD)
+		priceChange := price.priceUSD - currentPrice.priceUSD
+		priceChangeAbs := math.Abs(priceChange)
 		currentPrice = price
 
-		if priceChange == 0 { // no change in price no worm movement
+		if priceChangeAbs == 0 { // no change in price no worm movement
 			continue
 		}
 
 		// Magnify the price change to simulate worm movement
-		intChange := int(priceChange * magnification)
+		intChange := int(priceChangeAbs * magnification)
 		zap.S().Infow("price change", "change", intChange)
 
-		w.mu.Lock()
 		for i := 0; i < intChange; i++ {
-			// 80% change of chemotaxis and 20% of nose touch for each cycle
-			if rand.Intn(100) < 80 {
+			// 50% chance of either chemotaxis or nosetouch
+			if rand.Intn(100) < 50 {
 				C.Worm_chemotaxis(w.cworm)
 			} else {
 				C.Worm_noseTouch(w.cworm)
@@ -73,8 +74,17 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 			)
 
 			p.update(angle, magnitude)
-			w.positions = append(w.positions, p)
 		}
+		p.setMD(price.priceUSD, priceChange) // only set the meta data when saving the postion
+
+		w.mu.Lock()
+		w.positions = append(w.positions, p)
+
+		// if the positions slice is too large, remove the first 100 elements
+		if len(w.positions) > 5_000 {
+			w.positions = w.positions[100:]
+		}
+
 		w.mu.Unlock()
 	}
 }
@@ -90,9 +100,20 @@ func (w *Worm) Positions() []position {
 // Position and movement functions
 
 type position struct {
+	ID        string  `json:"id"`
 	X         float64 `json:"x"`
 	Y         float64 `json:"y"`
 	Direction float64 `json:"direction"`
+	PriceInfo struct {
+		PriceUSD  float64 `json:"priceUSD"`
+		ChangeUSD float64 `json:"changeUSD"`
+	} `json:"priceInfo"`
+}
+
+func (p *position) setMD(price, priceChange float64) {
+	p.ID = uuid.New().String()
+	p.PriceInfo.PriceUSD = price
+	p.PriceInfo.ChangeUSD = priceChange
 }
 
 func (p *position) update(angle, magnitude float64) {
