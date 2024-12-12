@@ -44,6 +44,7 @@ contract Worm {
     error UpdateCooldownNotOver();
     error TriggerCooldownNotOver();
     error InvalidCaller();
+    error InvalidPcrs();
 
     constructor(
         address _attestationVerifier,
@@ -51,6 +52,7 @@ contract Worm {
         uint256 _triggerCooldownTime,
         bytes memory _pcrs
     ) payable {
+        require(_pcrs.length == 144, InvalidPcrs());
         ATTESTATION_VERIFIER = IMarlinTEEAttestationVerifier(
             _attestationVerifier
         );
