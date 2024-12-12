@@ -37,7 +37,7 @@ contract Worm {
         uint256 positionTimestamp,
         address indexed triggeringUser
     );
-    event EnclaveKeyUpdated(bytes indexed enclaveKey);
+    event EnclaveKeyUpdated(address indexed enclave);
     event UserTriggeredWorm(address indexed triggeringUser);
 
     error PubkeyLengthInvalid();
@@ -128,7 +128,7 @@ contract Worm {
         enclave = _pubKeyToAddress(_enclaveKey);
         lastUpdatedTimestamp = block.timestamp;
 
-        emit EnclaveKeyUpdated(_enclaveKey);
+        emit EnclaveKeyUpdated(enclave);
     }
 
     function _pubKeyToAddress(
