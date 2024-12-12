@@ -5,14 +5,6 @@
   };
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/24.05";
-    # fenix = {
-    #   url = "github:nix-community/fenix";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
-    # naersk = {
-    #   url = "github:nix-community/naersk";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
     nitro-util = {
       url = "github:monzo/aws-nitro-util";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -20,8 +12,6 @@
     oyster = {
       url = "github:marlinprotocol/oyster-monorepo";
       inputs.nixpkgs.follows = "nixpkgs";
-      # inputs.fenix.follows = "fenix";
-      # inputs.naersk.follows = "naersk";
       inputs.nitro-util.follows = "nitro-util";
     };
   };
@@ -35,17 +25,6 @@
   }: let
     system = "x86_64-linux";
     pkgs = nixpkgs.legacyPackages.${system};
-    # target = "x86_64-unknown-linux-gnu";
-    # toolchain = with fenix.packages.${system};
-    #   combine [
-    #     stable.cargo
-    #     stable.rustc
-    #     targets.${target}.stable.rust-std
-    #   ];
-    # naersk' = naersk.lib.${system}.override {
-    #   cargo = toolchain;
-    #   rustc = toolchain;
-    # };
     nematoduino = pkgs.stdenv.mkDerivation {
       name = "nematoduino";
       src = ./. + "/nematoduino";
@@ -54,15 +33,11 @@
         "-DCMAKE_BUILD_TYPE=Release"
       ];
     };
-    # worm = naersk'.buildPackage {
-    #   src = ./.;
-    #   nativeBuildInputs = [nematoduino];
-    # };
     worm = pkgs.buildGoModule {
       src = ./.;
       nativeBuildInputs = [nematoduino];
       name = "worm";
-      vendorHash = "sha256-Heupmi9qWVq64O6d7zyLiR3nRj3D62BQ2Z81vTfTTMM=";
+      vendorHash = "sha256-0lClsN/fluAA3Ky8wPOyaBQre326+l/4bDsfvDkDngo=";
       ldflags = ["-s" "-w"];
       trimpath = true;
       buildMode = "pie";
@@ -80,6 +55,7 @@
     dnsproxy' = "${dnsproxy}/bin/dnsproxy";
     keygen = oyster.packages.${system}.musl.initialization.keygen.compressed;
     keygenEd25519 = "${keygen}/bin/keygen-ed25519";
+    keygenSecp256k1 = "${keygen}/bin/keygen-secp256k1";
     tcp-proxy = oyster.packages.${system}.musl.networking.tcp-proxy.compressed;
     itvtProxy = "${tcp-proxy}/bin/ip-to-vsock-transparent";
     vtiProxy = "${tcp-proxy}/bin/vsock-to-ip";
@@ -100,6 +76,7 @@
       mkdir -p $out/etc
       cp ${supervisord'} $out/app/supervisord
       cp ${keygenEd25519} $out/app/keygen-ed25519
+      cp ${keygenSecp256k1} $out/app/keygen-secp256k1
       cp ${itvtProxy} $out/app/ip-to-vsock-transparent
       cp ${vtiProxy} $out/app/vsock-to-ip
       cp ${attestationServer} $out/app/attestation-server
