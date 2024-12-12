@@ -22,16 +22,16 @@ contract Worm {
     }
 
     event WormStateUpdated(
-        uint256 deltaX,
-        uint256 deltaY,
+        int256 deltaX,
+        int256 deltaY,
         uint256 leftMuscle,
         uint256 rightMuscle,
         uint256 positionTimestamp,
         uint256 positionPrice
     );
     event WormStateUpdatedByUser(
-        uint256 deltaX,
-        uint256 deltaY,
+        int256 deltaX,
+        int256 deltaY,
         uint256 leftMuscle,
         uint256 rightMuscle,
         uint256 positionTimestamp,
@@ -62,8 +62,8 @@ contract Worm {
     }
 
     function updateState(
-        uint256 _deltaX,
-        uint256 _deltaY,
+        int256 _deltaX,
+        int256 _deltaY,
         uint256 _timestamp,
         uint256 _leftMuscle,
         uint256 _rightMuscle,
@@ -86,8 +86,8 @@ contract Worm {
     }
 
     function updateStateByUserTrigger(
-        uint256 _deltaX,
-        uint256 _deltaY,
+        int256 _deltaX,
+        int256 _deltaY,
         uint256 _timestamp,
         uint256 _leftMuscle,
         uint256 _rightMuscle,
