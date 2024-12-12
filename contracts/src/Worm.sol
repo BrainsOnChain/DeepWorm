@@ -68,7 +68,7 @@ contract Worm {
         uint256 _leftMuscle,
         uint256 _rightMuscle,
         uint256 _positionPrice
-    ) public {
+    ) external {
         require(enclave == msg.sender, InvalidCaller());
 
         wormState.leftMuscle = _leftMuscle;
@@ -92,7 +92,7 @@ contract Worm {
         uint256 _leftMuscle,
         uint256 _rightMuscle,
         address _triggeringUser
-    ) public {
+    ) external {
         require(enclave == msg.sender, InvalidCaller());
 
         wormState.leftMuscle = _leftMuscle;
@@ -113,7 +113,7 @@ contract Worm {
         bytes calldata _enclaveKey,
         bytes calldata _seal,
         uint64 _timestampInMilliseconds
-    ) public {
+    ) external {
         require(
             block.timestamp > lastUpdatedTimestamp + UPDATE_COOLDOWN_TIME,
             UpdateCooldownNotOver()
