@@ -1,13 +1,9 @@
 package main
 
 import (
-	"encoding/json"
-	"net/http"
-	"path/filepath"
 	"sync"
 
 	"github.com/brainsonchain/deepworm/src"
-	"github.com/go-chi/chi"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -58,9 +54,8 @@ func main() {
 	// -------------------------------------------------------------------------
 	// Create the server
 	log.Info("creating server")
-	s := newServer(log, worm)
 	go func() {
-		errChan <- s.start()
+		errChan <- worm.StateServe(mutex)
 	}()
 
 	// -------------------------------------------------------------------------
@@ -70,38 +65,4 @@ func main() {
 			log.Error(err.Error())
 		}
 	}
-}
-
-type server struct {
-	log  *zap.Logger
-	r    *chi.Mux
-	worm *src.Worm
-}
-
-func newServer(l *zap.Logger, w *src.Worm) *server {
-	s := &server{
-		log:  l,
-		r:    chi.NewRouter(),
-		worm: w,
-	}
-
-	// Serve index.html in the /app directory
-	s.r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		filePath := filepath.Join("app", "index.html")
-		s.log.Info("serving index.html", zap.String("path", filePath))
-		http.ServeFile(w, r, filePath)
-	})
-
-	s.r.Get("/worm", func(w http.ResponseWriter, r *http.Request) {
-		wormPositions := s.worm.Positions()
-
-		s.log.Info("serving worm positions")
-		json.NewEncoder(w).Encode(wormPositions)
-	})
-
-	return s
-}
-
-func (s *server) start() error {
-	return http.ListenAndServe(":8080", s.r)
 }

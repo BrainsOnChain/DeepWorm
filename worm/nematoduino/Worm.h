@@ -19,5 +19,6 @@ void Worm_noseTouch(Worm *worm);
 int Worm_getLeftMuscle(Worm *worm);
 int Worm_getRightMuscle(Worm *worm);
 void Worm_update(Worm *worm, const uint16_t *stim_neuron, int len_stim_neuron);
+int16_t Worm_state(Worm *worm, const uint16_t id);
 
 #endif

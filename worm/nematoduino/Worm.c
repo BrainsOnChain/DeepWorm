@@ -1,5 +1,6 @@
 #include "Worm.h"
 #include "behaviors.h"
+#include "utility/connectome.h"
 
 Worm *Worm_Worm() {
   Worm *this = malloc(sizeof(Worm));
@@ -100,13 +101,14 @@ void Worm_update(Worm *worm, const uint16_t *stim_neuron, int len_stim_neuron) {
 
   // This breaks the make command
   // if (right_neck_total > left_neck_total) {
-  //   this->debug_right_count++;      
+  //   this->debug_right_count++;
   // }
   // else {
   //   this->debug_left_count++;
   // }
 
-  // std::cout << "Right Neck: " << this->debug_right_count << ", Left neck: " << this->debug_left_count 
+  // std::cout << "Right Neck: " << this->debug_right_count << ", Left neck: "
+  // << this->debug_left_count
   //           << std::endl;
 
   // Log A and B type motor neuron activity
@@ -141,4 +143,8 @@ void Worm_update(Worm *worm, const uint16_t *stim_neuron, int len_stim_neuron) {
 
   worm->leftMuscle = left_total;
   worm->rightMuscle = right_total;
+}
+
+int16_t Worm_state(Worm *worm, const uint16_t id) {
+  return ctm_get_current_state(&worm->connectome, id);
 }

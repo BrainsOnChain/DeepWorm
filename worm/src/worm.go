@@ -13,6 +13,7 @@ extern void Worm_chemotaxis(Worm* worm);
 extern void Worm_noseTouch(Worm* worm);
 extern int Worm_getLeftMuscle(Worm* worm);
 extern int Worm_getRightMuscle(Worm* worm);
+extern int16_t Worm_state(Worm* worm, const uint16_t id);
 */
 import "C"
 import (
@@ -23,6 +24,8 @@ import (
 	"math"
 	"math/big"
 	"math/rand"
+	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -48,6 +51,25 @@ func NewWorm() *Worm {
 		cworm: C.Worm_Worm(),
 		mu:    &sync.Mutex{},
 	}
+}
+
+func (w *Worm) StateServe(mu *sync.Mutex) error {
+	http.HandleFunc("/state", func(rw http.ResponseWriter, r *http.Request) {
+		id := r.URL.Query().Get("id")
+		id_int, err := strconv.ParseInt(id, 10, 16)
+		if err != nil {
+			rw.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		mu.Lock()
+		state := C.Worm_state(w.cworm, C.uint16_t(id_int))
+		mu.Unlock()
+
+		rw.Write([]byte(strconv.Itoa(int(state))))
+	})
+
+	return http.ListenAndServe(":8080", nil)
 }
 
 func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher, mu *sync.Mutex) {
