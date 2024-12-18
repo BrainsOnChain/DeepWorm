@@ -42,10 +42,18 @@ func main() {
 	}()
 
 	// -------------------------------------------------------------------------
+	// Create a worm EventFetcher instance
+	log.Info("creating worm event fetcher")
+	wormEventFetcher := src.NewEventFetcher()
+	go func() {
+		errChan <- wormEventFetcher.Fetch()
+	}()
+
+	// -------------------------------------------------------------------------
 	// Run the worm
 	log.Info("creating worm")
 	worm := src.NewWorm()
-	go worm.Run(wormPriceFetcher, mutex)
+	go worm.Run(wormPriceFetcher, wormEventFetcher, mutex)
 
 	// -------------------------------------------------------------------------
 	// Create the server

@@ -50,11 +50,12 @@ func NewWorm() *Worm {
 	}
 }
 
-func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
+func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher, mu *sync.Mutex) {
 	defer C.Worm_destroy(w.cworm) // Ensure proper cleanup
 	var p position
 
-	privateKeyBytes, err := ioutil.ReadFile("/app/secp.sec")
+	privateKeyBytes, err := ioutil.ReadFile("./secp.sec")
+	// privateKeyBytes, err := ioutil.ReadFile("/app/secp.sec")
 	if err != nil {
 		zap.S().Errorw("Failed to read private key file", "error", err)
 		return
@@ -77,94 +78,179 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 	zap.S().Infow("Using address", "from", fromAddress.Hex())
 
 	// Fetch the price of worm and compare to previous price
-	currentPrice := <-fetcher.priceChan
-	for price := range fetcher.priceChan {
-		priceChange := math.Abs(price.priceUSD - currentPrice.priceUSD)
-		currentPrice = price
+	currentPrice := <-pfetcher.priceChan
 
-		if priceChange == 0 { // no change in price no worm movement
-			continue
-		}
+	for {
+		select {
+		case price := <-pfetcher.priceChan:
+			{
+				priceChange := math.Abs(price.priceUSD - currentPrice.priceUSD)
+				currentPrice = price
 
-		// Magnify the price change to simulate worm movement
-		intChange := int(priceChange * magnification)
-		zap.S().Infow("price change", "change", intChange)
+				if priceChange == 0 { // no change in price no worm movement
+					continue
+				}
 
-		w.mu.Lock()
-		adX, adY := 0.0, 0.0
-		var leftMuscle, rightMuscle float64
-		for i := 0; i < intChange; i++ {
-			// 80% change of chemotaxis and 20% of nose touch for each cycle
-			if rand.Intn(100) < 80 {
-				C.Worm_chemotaxis(w.cworm)
-			} else {
-				C.Worm_noseTouch(w.cworm)
+				// Magnify the price change to simulate worm movement
+				intChange := int(priceChange * magnification)
+				zap.S().Infow("price change", "change", intChange)
+
+				w.mu.Lock()
+				adX, adY := 0.0, 0.0
+				var leftMuscle, rightMuscle float64
+				for i := 0; i < intChange; i++ {
+					// 80% change of chemotaxis and 20% of nose touch for each cycle
+					if rand.Intn(100) < 80 {
+						C.Worm_chemotaxis(w.cworm)
+					} else {
+						C.Worm_noseTouch(w.cworm)
+					}
+
+					leftMuscle, rightMuscle = float64(C.Worm_getLeftMuscle(w.cworm)), float64(C.Worm_getRightMuscle(w.cworm))
+
+					angle, magnitude := movement(leftMuscle, rightMuscle)
+
+					dX, dY := p.update(angle, magnitude)
+					adX += dX
+					adY += dY
+					// w.positions = append(w.positions, p)
+				}
+				w.mu.Unlock()
+
+				client, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
+				if err != nil {
+					zap.S().Errorw("Failed to connect to the Ethereum rpc", "error", err)
+					continue
+				}
+
+				contractAddress := common.HexToAddress("0x7A129762332B8f4c6Ed4850c17B218C89e78854d")
+
+				calldata := fmt.Sprintf("0x6faeae2b%s%s%s%s%s%s",
+					encode(adX),
+					encode(adY),
+					encodeInt(time.Now().Unix()),
+					encode(leftMuscle),
+					encode(rightMuscle),
+					encode(currentPrice.priceUSD*magnification))
+				data := common.FromHex(calldata)
+
+				nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
+				if err != nil {
+					zap.S().Errorw("Failed to get nonce", "error", err)
+					continue
+				}
+
+				gasPrice, err := client.SuggestGasPrice(context.Background())
+				if err != nil {
+					zap.S().Errorw("Failed to get gas price", "error", err)
+					continue
+				}
+
+				tx := types.NewTransaction(
+					nonce,
+					contractAddress,
+					big.NewInt(0),
+					300000,
+					gasPrice,
+					data,
+				)
+
+				chainID := big.NewInt(998)
+
+				signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
+				if err != nil {
+					zap.S().Errorw("Failed to sign transaction", "error", err)
+					continue
+				}
+
+				err = client.SendTransaction(context.Background(), signedTx)
+				if err != nil {
+					zap.S().Errorw("Failed to send transaction", "error", err)
+					continue
+				}
+
+				zap.S().Infow("Transaction sent", "hash", signedTx.Hash().Hex())
 			}
+		case address := <-efetcher.eventChan:
+			{
+				intChange := 10
+				w.mu.Lock()
+				adX, adY := 0.0, 0.0
+				var leftMuscle, rightMuscle float64
+				for i := 0; i < intChange; i++ {
+					// 80% change of chemotaxis and 20% of nose touch for each cycle
+					if rand.Intn(100) < 80 {
+						C.Worm_chemotaxis(w.cworm)
+					} else {
+						C.Worm_noseTouch(w.cworm)
+					}
 
-			leftMuscle, rightMuscle = float64(C.Worm_getLeftMuscle(w.cworm)), float64(C.Worm_getRightMuscle(w.cworm))
+					leftMuscle, rightMuscle = float64(C.Worm_getLeftMuscle(w.cworm)), float64(C.Worm_getRightMuscle(w.cworm))
 
-			angle, magnitude := movement(leftMuscle, rightMuscle)
+					angle, magnitude := movement(leftMuscle, rightMuscle)
 
-			dX, dY := p.update(angle, magnitude)
-			adX += dX
-			adY += dY
-			// w.positions = append(w.positions, p)
+					dX, dY := p.update(angle, magnitude)
+					adX += dX
+					adY += dY
+					// w.positions = append(w.positions, p)
+				}
+				w.mu.Unlock()
+
+				client, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
+				if err != nil {
+					zap.S().Errorw("Failed to connect to the Ethereum rpc", "error", err)
+					continue
+				}
+
+				contractAddress := common.HexToAddress("0x7A129762332B8f4c6Ed4850c17B218C89e78854d")
+
+				calldata := fmt.Sprintf("0xce4f76ca%s%s%s%s%s%s",
+					encode(adX),
+					encode(adY),
+					encodeInt(time.Now().Unix()),
+					encode(leftMuscle),
+					encode(rightMuscle),
+					address)
+				data := common.FromHex(calldata)
+
+				nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
+				if err != nil {
+					zap.S().Errorw("Failed to get nonce", "error", err)
+					continue
+				}
+
+				gasPrice, err := client.SuggestGasPrice(context.Background())
+				if err != nil {
+					zap.S().Errorw("Failed to get gas price", "error", err)
+					continue
+				}
+
+				tx := types.NewTransaction(
+					nonce,
+					contractAddress,
+					big.NewInt(0),
+					300000,
+					gasPrice,
+					data,
+				)
+
+				chainID := big.NewInt(998)
+
+				signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
+				if err != nil {
+					zap.S().Errorw("Failed to sign transaction", "error", err)
+					continue
+				}
+
+				err = client.SendTransaction(context.Background(), signedTx)
+				if err != nil {
+					zap.S().Errorw("Failed to send transaction", "error", err)
+					continue
+				}
+
+				zap.S().Infow("Transaction sent", "hash", signedTx.Hash().Hex())
+			}
 		}
-		w.mu.Unlock()
-
-		client, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
-		if err != nil {
-			zap.S().Errorw("Failed to connect to the Ethereum rpc", "error", err)
-			continue
-		}
-
-		contractAddress := common.HexToAddress("0x7A129762332B8f4c6Ed4850c17B218C89e78854d")
-
-		calldata := fmt.Sprintf("0x6faeae2b%s%s%s%s%s%s",
-			encode(adX),
-			encode(adY),
-			encodeInt(time.Now().Unix()),
-			encode(leftMuscle),
-			encode(rightMuscle),
-			encode(currentPrice.priceUSD*magnification))
-		data := common.FromHex(calldata)
-
-		nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
-		if err != nil {
-			zap.S().Errorw("Failed to get nonce", "error", err)
-			continue
-		}
-
-		gasPrice, err := client.SuggestGasPrice(context.Background())
-		if err != nil {
-			zap.S().Errorw("Failed to get gas price", "error", err)
-			continue
-		}
-
-		tx := types.NewTransaction(
-			nonce,
-			contractAddress,
-			big.NewInt(0),
-			300000,
-			gasPrice,
-			data,
-		)
-
-		chainID := big.NewInt(998)
-
-		signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
-		if err != nil {
-			zap.S().Errorw("Failed to sign transaction", "error", err)
-			continue
-		}
-
-		err = client.SendTransaction(context.Background(), signedTx)
-		if err != nil {
-			zap.S().Errorw("Failed to send transaction", "error", err)
-			continue
-		}
-
-		zap.S().Infow("Transaction sent", "hash", signedTx.Hash().Hex())
 	}
 }
 
