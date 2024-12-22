@@ -41,19 +41,54 @@ const (
 )
 
 type Worm struct {
-	cworm     *C.Worm
-	mu        *sync.Mutex
-	positions []position
+	cworm   *C.Worm
+	Mu      *sync.Mutex
+	Address *common.Address
 }
 
 func NewWorm() *Worm {
 	return &Worm{
-		cworm: C.Worm_Worm(),
-		mu:    &sync.Mutex{},
+		cworm:   C.Worm_Worm(),
+		Mu:      &sync.Mutex{},
+		Address: nil,
 	}
 }
 
-func (w *Worm) StateServe(mu *sync.Mutex) error {
+func (w *Worm) StateServe(efetcher *eventFetcher) error {
+	http.HandleFunc("/set", func(rw http.ResponseWriter, r *http.Request) {
+		address := common.HexToAddress(r.URL.Query().Get("address"))
+
+		efetcher.Mu.Lock()
+		if efetcher.Address != nil {
+			rw.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		efetcher.Address = &address
+		efetcher.Mu.Unlock()
+
+		w.Mu.Lock()
+		w.Address = &address
+		w.Mu.Unlock()
+
+		rw.Write([]byte("done"))
+	})
+
+	http.HandleFunc("/leftmuscle", func(rw http.ResponseWriter, r *http.Request) {
+		w.Mu.Lock()
+		state := C.Worm_getLeftMuscle(w.cworm)
+		w.Mu.Unlock()
+
+		rw.Write([]byte(strconv.Itoa(int(state))))
+	})
+
+	http.HandleFunc("/rightmuscle", func(rw http.ResponseWriter, r *http.Request) {
+		w.Mu.Lock()
+		state := C.Worm_getRightMuscle(w.cworm)
+		w.Mu.Unlock()
+
+		rw.Write([]byte(strconv.Itoa(int(state))))
+	})
+
 	http.HandleFunc("/state", func(rw http.ResponseWriter, r *http.Request) {
 		id := r.URL.Query().Get("id")
 		id_int, err := strconv.ParseInt(id, 10, 16)
@@ -62,9 +97,9 @@ func (w *Worm) StateServe(mu *sync.Mutex) error {
 			return
 		}
 
-		mu.Lock()
+		w.Mu.Lock()
 		state := C.Worm_state(w.cworm, C.uint16_t(id_int))
-		mu.Unlock()
+		w.Mu.Unlock()
 
 		rw.Write([]byte(strconv.Itoa(int(state))))
 	})
@@ -72,12 +107,12 @@ func (w *Worm) StateServe(mu *sync.Mutex) error {
 	return http.ListenAndServe(":8080", nil)
 }
 
-func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher, mu *sync.Mutex) {
+func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher) {
 	defer C.Worm_destroy(w.cworm) // Ensure proper cleanup
 	var p position
 
-	privateKeyBytes, err := ioutil.ReadFile("./secp.sec")
-	// privateKeyBytes, err := ioutil.ReadFile("/app/secp.sec")
+	// privateKeyBytes, err := ioutil.ReadFile("./secp.sec")
+	privateKeyBytes, err := ioutil.ReadFile("/app/secp.sec")
 	if err != nil {
 		zap.S().Errorw("Failed to read private key file", "error", err)
 		return
@@ -117,7 +152,7 @@ func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher, mu *sync.Mute
 				intChange := int(priceChange * magnification)
 				zap.S().Infow("price change", "change", intChange)
 
-				w.mu.Lock()
+				w.Mu.Lock()
 				adX, adY := 0.0, 0.0
 				var leftMuscle, rightMuscle float64
 				for i := 0; i < intChange; i++ {
@@ -135,9 +170,8 @@ func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher, mu *sync.Mute
 					dX, dY := p.update(angle, magnitude)
 					adX += dX
 					adY += dY
-					// w.positions = append(w.positions, p)
 				}
-				w.mu.Unlock()
+				w.Mu.Unlock()
 
 				client, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
 				if err != nil {
@@ -145,7 +179,7 @@ func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher, mu *sync.Mute
 					continue
 				}
 
-				contractAddress := common.HexToAddress("0x7A129762332B8f4c6Ed4850c17B218C89e78854d")
+				contractAddress := *w.Address
 
 				calldata := fmt.Sprintf("0x6faeae2b%s%s%s%s%s%s",
 					encode(adX),
@@ -196,7 +230,7 @@ func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher, mu *sync.Mute
 		case address := <-efetcher.eventChan:
 			{
 				intChange := 10
-				w.mu.Lock()
+				w.Mu.Lock()
 				adX, adY := 0.0, 0.0
 				var leftMuscle, rightMuscle float64
 				for i := 0; i < intChange; i++ {
@@ -214,9 +248,8 @@ func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher, mu *sync.Mute
 					dX, dY := p.update(angle, magnitude)
 					adX += dX
 					adY += dY
-					// w.positions = append(w.positions, p)
 				}
-				w.mu.Unlock()
+				w.Mu.Unlock()
 
 				client, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
 				if err != nil {
@@ -224,7 +257,7 @@ func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher, mu *sync.Mute
 					continue
 				}
 
-				contractAddress := common.HexToAddress("0x7A129762332B8f4c6Ed4850c17B218C89e78854d")
+				contractAddress := *w.Address
 
 				calldata := fmt.Sprintf("0xce4f76ca%s%s%s%s%s%s",
 					encode(adX),
@@ -292,13 +325,6 @@ func encode(num float64) string {
 	}
 
 	return fmt.Sprintf("%064x", bignum)
-}
-
-func (w *Worm) Positions() []position {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	return w.positions
 }
 
 // -----------------------------------------------------------------------------

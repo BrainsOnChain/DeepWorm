@@ -3,6 +3,7 @@ package src
 import (
 	"context"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -14,12 +15,16 @@ import (
 type eventFetcher struct {
 	ticker    *time.Ticker
 	eventChan chan common.Hash
+	Mu        *sync.Mutex
+	Address   *common.Address
 }
 
 func NewEventFetcher() *eventFetcher {
 	return &eventFetcher{
 		ticker:    time.NewTicker(2 * time.Second),
 		eventChan: make(chan common.Hash),
+		Mu:        &sync.Mutex{},
+		Address:   nil,
 	}
 }
 
@@ -59,9 +64,8 @@ func (ef *eventFetcher) Fetch() error {
 			continue
 		}
 
-		// TODO: change for production
-		contractAddress := common.HexToAddress("0xADcb2f358Eae6492F61A5F87eb8893d09391d160")
-		topic := common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
+		contractAddress := *ef.Address
+		topic := common.HexToHash("0x655d1e7b93108e2de8f400b1c7a9720d149068ab024d30642da3af0345db848c")
 
 		query := ethereum.FilterQuery{
 			FromBlock: latestBlock,

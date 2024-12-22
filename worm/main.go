@@ -1,14 +1,10 @@
 package main
 
 import (
-	"sync"
-
 	"github.com/brainsonchain/deepworm/src"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
-
-var mutex = &sync.Mutex{} // create a mutex to lock the wormPositions slice
 
 func main() {
 
@@ -49,13 +45,13 @@ func main() {
 	// Run the worm
 	log.Info("creating worm")
 	worm := src.NewWorm()
-	go worm.Run(wormPriceFetcher, wormEventFetcher, mutex)
+	go worm.Run(wormPriceFetcher, wormEventFetcher)
 
 	// -------------------------------------------------------------------------
 	// Create the server
 	log.Info("creating server")
 	go func() {
-		errChan <- worm.StateServe(mutex)
+		errChan <- worm.StateServe(wormEventFetcher)
 	}()
 
 	// -------------------------------------------------------------------------
