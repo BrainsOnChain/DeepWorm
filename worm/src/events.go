@@ -84,6 +84,8 @@ func (ef *eventFetcher) Fetch() error {
 			continue
 		}
 
+		latestBlock.Set(newLatestBlock)
+
 		if len(logs) > 0 {
 			address := logs[0].Topics[1]
 			zap.S().Infow("event trigger", "address", address)

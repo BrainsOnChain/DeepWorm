@@ -265,7 +265,7 @@ func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher) {
 					encodeInt(time.Now().Unix()),
 					encode(leftMuscle),
 					encode(rightMuscle),
-					address)
+					address.Hex()[2:])
 				data := common.FromHex(calldata)
 
 				nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
