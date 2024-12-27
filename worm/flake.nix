@@ -37,7 +37,7 @@
       src = ./.;
       nativeBuildInputs = [nematoduino];
       name = "worm";
-      vendorHash = "sha256-0lClsN/fluAA3Ky8wPOyaBQre326+l/4bDsfvDkDngo=";
+      vendorHash = "sha256-QxiqNlfFsB/hAsav7h1c4E9qw889nOsyK++EPi+1WOg=";
       ldflags = ["-s" "-w"];
       trimpath = true;
       buildMode = "pie";
