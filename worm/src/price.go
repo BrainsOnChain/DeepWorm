@@ -46,9 +46,9 @@ func (pf *priceFetcher) Fetch() error {
 	for range pf.ticker.C {
 		resp, err := pf.client.Do(req)
 		if err != nil {
-			return fmt.Errorf("error fetching price: %w", err)
+			fmt.Println("error fetching price: %w", err)
+			continue
 		}
-		defer resp.Body.Close()
 
 		type respObj struct {
 			Data map[string]struct {
@@ -59,8 +59,11 @@ func (pf *priceFetcher) Fetch() error {
 
 		var data respObj
 		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-			return fmt.Errorf("error decoding response: %w", err)
+			resp.Body.Close()
+			fmt.Println("error decoding response: %w", err)
+			continue
 		}
+		resp.Body.Close()
 
 		pf.priceChan <- newPrice(pf.coinAddr, data.Data[pf.coinAddr].Price)
 	}
