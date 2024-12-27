@@ -60,6 +60,7 @@ func (w *Worm) StateServe(efetcher *eventFetcher) error {
 
 		efetcher.Mu.Lock()
 		if efetcher.Address != nil {
+			efetcher.Mu.Unlock()
 			rw.WriteHeader(http.StatusBadRequest)
 			return
 		}
