@@ -20,11 +20,11 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"math/big"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -41,16 +41,19 @@ const (
 )
 
 type Worm struct {
-	cworm   *C.Worm
-	Mu      *sync.Mutex
-	Address *common.Address
+	log       *zap.Logger
+	cworm     *C.Worm
+	mu        *sync.Mutex
+	address   *common.Address
+	ethclient *ethclient.Client
 }
 
-func NewWorm() *Worm {
+func NewWorm(log *zap.Logger, ethclient *ethclient.Client) *Worm {
 	return &Worm{
-		cworm:   C.Worm_Worm(),
-		Mu:      &sync.Mutex{},
-		Address: nil,
+		log:       log,
+		cworm:     C.Worm_Worm(),
+		mu:        &sync.Mutex{},
+		ethclient: ethclient,
 	}
 }
 
@@ -58,34 +61,34 @@ func (w *Worm) StateServe(efetcher *eventFetcher) error {
 	http.HandleFunc("/set", func(rw http.ResponseWriter, r *http.Request) {
 		address := common.HexToAddress(r.URL.Query().Get("address"))
 
-		efetcher.Mu.Lock()
-		if efetcher.Address != nil {
-			efetcher.Mu.Unlock()
+		efetcher.mu.Lock()
+		if efetcher.address != nil {
+			efetcher.mu.Unlock()
 			rw.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		efetcher.Address = &address
-		efetcher.Mu.Unlock()
+		efetcher.address = &address
+		efetcher.mu.Unlock()
 
-		w.Mu.Lock()
-		w.Address = &address
-		w.Mu.Unlock()
+		w.mu.Lock()
+		w.address = &address
+		w.mu.Unlock()
 
 		rw.Write([]byte("done"))
 	})
 
 	http.HandleFunc("/leftmuscle", func(rw http.ResponseWriter, r *http.Request) {
-		w.Mu.Lock()
+		w.mu.Lock()
 		state := C.Worm_getLeftMuscle(w.cworm)
-		w.Mu.Unlock()
+		w.mu.Unlock()
 
 		rw.Write([]byte(strconv.Itoa(int(state))))
 	})
 
 	http.HandleFunc("/rightmuscle", func(rw http.ResponseWriter, r *http.Request) {
-		w.Mu.Lock()
+		w.mu.Lock()
 		state := C.Worm_getRightMuscle(w.cworm)
-		w.Mu.Unlock()
+		w.mu.Unlock()
 
 		rw.Write([]byte(strconv.Itoa(int(state))))
 	})
@@ -98,9 +101,9 @@ func (w *Worm) StateServe(efetcher *eventFetcher) error {
 			return
 		}
 
-		w.Mu.Lock()
+		w.mu.Lock()
 		state := C.Worm_state(w.cworm, C.uint16_t(id_int))
-		w.Mu.Unlock()
+		w.mu.Unlock()
 
 		rw.Write([]byte(strconv.Itoa(int(state))))
 	})
@@ -108,206 +111,145 @@ func (w *Worm) StateServe(efetcher *eventFetcher) error {
 	return http.ListenAndServe(":8080", nil)
 }
 
-func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher) {
-	defer C.Worm_destroy(w.cworm) // Ensure proper cleanup
+func (w *Worm) Run(pfetcher *priceFetcher, efetcher *eventFetcher) error {
+	defer C.Worm_destroy(w.cworm)
 	var p position
 
-	// privateKeyBytes, err := ioutil.ReadFile("./secp.sec")
-	privateKeyBytes, err := ioutil.ReadFile("/app/secp.sec")
+	privateKeyBytes, err := os.ReadFile("/app/secp.sec")
 	if err != nil {
-		zap.S().Errorw("Failed to read private key file", "error", err)
-		return
+		return fmt.Errorf("failed to read private key file: %w", err)
 	}
 
 	privateKey, err := crypto.ToECDSA(privateKeyBytes)
 	if err != nil {
-		zap.S().Errorw("Failed to parse private key", "error", err)
-		return
+		return fmt.Errorf("failed to parse private key: %w", err)
 	}
 
 	publicKey := privateKey.Public()
 	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
 	if !ok {
-		zap.S().Error("Failed to get public key")
-		return
+		return fmt.Errorf("failed to get public key")
 	}
 
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
-	zap.S().Infow("Using address", "from", fromAddress.Hex())
+	w.log.Sugar().Infow("Using address", "from", fromAddress.Hex())
 
-	// Fetch the price of worm and compare to previous price
 	currentPrice := <-pfetcher.priceChan
 
 	for {
 		select {
 		case price := <-pfetcher.priceChan:
-			{
-				priceChange := math.Abs(price.priceUSD - currentPrice.priceUSD)
-				currentPrice = price
+			priceChange := math.Abs(price.priceUSD - currentPrice.priceUSD)
+			currentPrice = price
 
-				if priceChange == 0 { // no change in price no worm movement
-					continue
-				}
-
-				// Magnify the price change to simulate worm movement
-				intChange := int(priceChange * magnification)
-				zap.S().Infow("price change", "change", intChange)
-
-				w.Mu.Lock()
-				adX, adY := 0.0, 0.0
-				var leftMuscle, rightMuscle float64
-				for i := 0; i < intChange; i++ {
-					// 80% change of chemotaxis and 20% of nose touch for each cycle
-					if rand.Intn(100) < 80 {
-						C.Worm_chemotaxis(w.cworm)
-					} else {
-						C.Worm_noseTouch(w.cworm)
-					}
-
-					leftMuscle, rightMuscle = float64(C.Worm_getLeftMuscle(w.cworm)), float64(C.Worm_getRightMuscle(w.cworm))
-
-					angle, magnitude := movement(leftMuscle, rightMuscle)
-
-					dX, dY := p.update(angle, magnitude)
-					adX += dX
-					adY += dY
-				}
-				w.Mu.Unlock()
-
-				client, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
-				if err != nil {
-					zap.S().Errorw("Failed to connect to the Ethereum rpc", "error", err)
-					continue
-				}
-
-				contractAddress := *w.Address
-
-				calldata := fmt.Sprintf("0x6faeae2b%s%s%s%s%s%s",
-					encode(adX),
-					encode(adY),
-					encodeInt(time.Now().Unix()),
-					encode(leftMuscle),
-					encode(rightMuscle),
-					encode(currentPrice.priceUSD*magnification))
-				data := common.FromHex(calldata)
-
-				nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
-				if err != nil {
-					zap.S().Errorw("Failed to get nonce", "error", err)
-					continue
-				}
-
-				gasPrice, err := client.SuggestGasPrice(context.Background())
-				if err != nil {
-					zap.S().Errorw("Failed to get gas price", "error", err)
-					continue
-				}
-
-				tx := types.NewTransaction(
-					nonce,
-					contractAddress,
-					big.NewInt(0),
-					300000,
-					gasPrice,
-					data,
-				)
-
-				chainID := big.NewInt(998)
-
-				signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
-				if err != nil {
-					zap.S().Errorw("Failed to sign transaction", "error", err)
-					continue
-				}
-
-				err = client.SendTransaction(context.Background(), signedTx)
-				if err != nil {
-					zap.S().Errorw("Failed to send transaction", "error", err)
-					continue
-				}
-
-				zap.S().Infow("Transaction sent", "hash", signedTx.Hash().Hex())
+			if priceChange == 0 {
+				continue
 			}
+
+			intChange := int(priceChange * magnification)
+			w.log.Sugar().Infow("price change", "change", intChange)
+
+			w.mu.Lock()
+			adX, adY := 0.0, 0.0
+			var leftMuscle, rightMuscle float64
+			for i := 0; i < intChange; i++ {
+				dX, dY := stimulateWorm(w, &p)
+				adX += dX
+				adY += dY
+			}
+			w.mu.Unlock()
+
+			calldata := buildCalldata(adX, adY, leftMuscle, rightMuscle, encode(currentPrice.priceUSD*magnification))
+
+			if err := w.sendTransaction(fromAddress, privateKey, calldata); err != nil {
+				w.log.Error("failed to send transaction", zap.Error(err))
+			}
+
 		case address := <-efetcher.eventChan:
-			{
-				intChange := 10
-				w.Mu.Lock()
-				adX, adY := 0.0, 0.0
-				var leftMuscle, rightMuscle float64
-				for i := 0; i < intChange; i++ {
-					// 80% change of chemotaxis and 20% of nose touch for each cycle
-					if rand.Intn(100) < 80 {
-						C.Worm_chemotaxis(w.cworm)
-					} else {
-						C.Worm_noseTouch(w.cworm)
-					}
+			intChange := 10
+			w.mu.Lock()
+			adX, adY := 0.0, 0.0
+			var leftMuscle, rightMuscle float64
+			for i := 0; i < intChange; i++ {
+				dX, dY := stimulateWorm(w, &p)
+				adX += dX
+				adY += dY
+			}
+			w.mu.Unlock()
 
-					leftMuscle, rightMuscle = float64(C.Worm_getLeftMuscle(w.cworm)), float64(C.Worm_getRightMuscle(w.cworm))
+			calldata := buildCalldata(adX, adY, leftMuscle, rightMuscle, address.Hex()[2:])
 
-					angle, magnitude := movement(leftMuscle, rightMuscle)
-
-					dX, dY := p.update(angle, magnitude)
-					adX += dX
-					adY += dY
-				}
-				w.Mu.Unlock()
-
-				client, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
-				if err != nil {
-					zap.S().Errorw("Failed to connect to the Ethereum rpc", "error", err)
-					continue
-				}
-
-				contractAddress := *w.Address
-
-				calldata := fmt.Sprintf("0xce4f76ca%s%s%s%s%s%s",
-					encode(adX),
-					encode(adY),
-					encodeInt(time.Now().Unix()),
-					encode(leftMuscle),
-					encode(rightMuscle),
-					address.Hex()[2:])
-				data := common.FromHex(calldata)
-
-				nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
-				if err != nil {
-					zap.S().Errorw("Failed to get nonce", "error", err)
-					continue
-				}
-
-				gasPrice, err := client.SuggestGasPrice(context.Background())
-				if err != nil {
-					zap.S().Errorw("Failed to get gas price", "error", err)
-					continue
-				}
-
-				tx := types.NewTransaction(
-					nonce,
-					contractAddress,
-					big.NewInt(0),
-					300000,
-					gasPrice,
-					data,
-				)
-
-				chainID := big.NewInt(998)
-
-				signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
-				if err != nil {
-					zap.S().Errorw("Failed to sign transaction", "error", err)
-					continue
-				}
-
-				err = client.SendTransaction(context.Background(), signedTx)
-				if err != nil {
-					zap.S().Errorw("Failed to send transaction", "error", err)
-					continue
-				}
-
-				zap.S().Infow("Transaction sent", "hash", signedTx.Hash().Hex())
+			if err := w.sendTransaction(fromAddress, privateKey, calldata); err != nil {
+				w.log.Error("failed to send transaction", zap.Error(err))
 			}
 		}
 	}
+}
+
+func stimulateWorm(w *Worm, p *position) (float64, float64) {
+	if rand.Intn(100) < 80 {
+		C.Worm_chemotaxis(w.cworm)
+	} else {
+		C.Worm_noseTouch(w.cworm)
+	}
+
+	leftMuscle := float64(C.Worm_getLeftMuscle(w.cworm))
+	rightMuscle := float64(C.Worm_getRightMuscle(w.cworm))
+
+	angle, magnitude := movement(leftMuscle, rightMuscle)
+	dX, dY := p.update(angle, magnitude)
+
+	return dX, dY
+}
+
+func buildCalldata(adX, adY, leftMuscle, rightMuscle float64, encodedVal string) string {
+	return fmt.Sprintf("0x6faeae2b%s%s%s%s%s%s",
+		encode(adX),
+		encode(adY),
+		encodeInt(time.Now().Unix()),
+		encode(leftMuscle),
+		encode(rightMuscle),
+		encodedVal,
+	)
+}
+
+func (w *Worm) sendTransaction(fromAddress common.Address, privateKey *ecdsa.PrivateKey, calldata string) error {
+	data := common.FromHex(calldata)
+	contractAddress := *w.address
+
+	nonce, err := w.ethclient.PendingNonceAt(context.Background(), fromAddress)
+	if err != nil {
+		return fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	gasPrice, err := w.ethclient.SuggestGasPrice(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to get gas price: %w", err)
+	}
+
+	tx := types.NewTransaction(
+		nonce,
+		contractAddress,
+		big.NewInt(0),
+		300000,
+		gasPrice,
+		data,
+	)
+
+	chainID := big.NewInt(998)
+
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
+	if err != nil {
+		return fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	err = w.ethclient.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		return fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	w.log.Sugar().Infow("Transaction sent", "hash", signedTx.Hash().Hex())
+	return nil
 }
 
 func encodeInt(num int64) string {
@@ -337,6 +279,8 @@ type position struct {
 	Direction float64 `json:"direction"`
 }
 
+// update updates the position based on the angle and magnitude. It returns the
+// distance moved in the X and Y directions.
 func (p *position) update(angle, magnitude float64) (float64, float64) {
 	p.Direction += angle
 	if p.Direction < 0 {

@@ -2,6 +2,7 @@ package src
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -13,74 +14,58 @@ import (
 )
 
 type eventFetcher struct {
+	log       *zap.Logger
 	ticker    *time.Ticker
 	eventChan chan common.Hash
-	Mu        *sync.Mutex
-	Address   *common.Address
+	address   *common.Address
+	ethclient *ethclient.Client
+	mu        *sync.Mutex
 }
 
-func NewEventFetcher() *eventFetcher {
+func NewEventFetcher(log *zap.Logger, ethclient *ethclient.Client) *eventFetcher {
 	return &eventFetcher{
+		log:       log,
 		ticker:    time.NewTicker(2 * time.Second),
 		eventChan: make(chan common.Hash),
-		Mu:        &sync.Mutex{},
-		Address:   nil,
+		ethclient: ethclient,
+		mu:        &sync.Mutex{},
 	}
 }
 
-func fetchLatestBlock() (*big.Int, error) {
-	client, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
-	if err != nil {
-		zap.S().Errorw("Failed to connect to the Ethereum rpc", "error", err)
-		return nil, err
-	}
-
+func fetchLatestBlock(client *ethclient.Client) (*big.Int, error) {
 	latestBlock, err := client.BlockNumber(context.Background())
 	if err != nil {
-		zap.S().Errorw("Failed to get latest block", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get latest block: %w", err)
 	}
-
 	return big.NewInt(int64(latestBlock)), nil
 }
 
 func (ef *eventFetcher) Fetch() error {
-	latestBlock, err := fetchLatestBlock()
+	latestBlock, err := fetchLatestBlock(ef.ethclient)
 	if err != nil {
-		zap.S().Errorw("Failed to fetch latest block", "error", err)
-		return err
+		return fmt.Errorf("failed to fetch latest block: %w", err)
 	}
-	<-ef.ticker.C
+
 	for range ef.ticker.C {
-		newLatestBlock, err := fetchLatestBlock()
+		newLatestBlock, err := fetchLatestBlock(ef.ethclient)
 		if err != nil {
-			zap.S().Errorw("Failed to fetch latest block", "error", err)
+			ef.log.Sugar().Errorw("Failed to fetch latest block", "error", err)
 			continue
 		}
 
-		client, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
-		if err != nil {
-			zap.S().Errorw("Failed to connect to the Ethereum rpc", "error", err)
-			continue
-		}
-
-		contractAddress := *ef.Address
+		contractAddress := *ef.address
 		topic := common.HexToHash("0x655d1e7b93108e2de8f400b1c7a9720d149068ab024d30642da3af0345db848c")
 
 		query := ethereum.FilterQuery{
 			FromBlock: latestBlock,
 			ToBlock:   newLatestBlock,
-			Addresses: []common.Address{
-				contractAddress,
-			},
-			Topics: [][]common.Hash{{
-				topic,
-			}},
+			Addresses: []common.Address{contractAddress},
+			Topics:    [][]common.Hash{{topic}},
 		}
 
-		logs, err := client.FilterLogs(context.Background(), query)
+		logs, err := ef.ethclient.FilterLogs(context.Background(), query)
 		if err != nil {
-			zap.S().Errorw("Failed to fetch latest block", "error", err)
+			ef.log.Sugar().Errorw("Failed to fetch latest block", "error", err)
 			continue
 		}
 
@@ -88,7 +73,7 @@ func (ef *eventFetcher) Fetch() error {
 
 		if len(logs) > 0 {
 			address := logs[0].Topics[1]
-			zap.S().Infow("event trigger", "address", address)
+			ef.log.Sugar().Infow("event trigger", "address", address)
 			ef.eventChan <- address
 		}
 	}

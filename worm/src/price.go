@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -20,14 +22,16 @@ const (
 )
 
 type priceFetcher struct {
+	log       *zap.Logger
 	client    *http.Client
 	ticker    *time.Ticker
 	coinAddr  string
 	priceChan chan price
 }
 
-func NewPriceFetcher(ca string) *priceFetcher {
+func NewPriceFetcher(log *zap.Logger, ca string) *priceFetcher {
 	return &priceFetcher{
+		log:       log,
 		client:    &http.Client{},
 		ticker:    time.NewTicker(priceFetchInterval),
 		coinAddr:  ca,
@@ -46,7 +50,7 @@ func (pf *priceFetcher) Fetch() error {
 	for range pf.ticker.C {
 		resp, err := pf.client.Do(req)
 		if err != nil {
-			fmt.Println("error fetching price: %w", err)
+			pf.log.Sugar().Errorw("error fetching price", "error", err)
 			continue
 		}
 
@@ -60,7 +64,7 @@ func (pf *priceFetcher) Fetch() error {
 		var data respObj
 		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 			resp.Body.Close()
-			fmt.Println("error decoding response: %w", err)
+			pf.log.Sugar().Errorw("error decoding response", "error", err)
 			continue
 		}
 		resp.Body.Close()
@@ -74,7 +78,7 @@ func (pf *priceFetcher) Fetch() error {
 func newPrice(mint, priceUSD string) price {
 	p, err := strconv.ParseFloat(priceUSD, 64)
 	if err != nil {
-		fmt.Println("Error converting price to float64:", err)
+		zap.S().Errorw("Error converting price to float64", "error", err)
 		return price{}
 	}
 

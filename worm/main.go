@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/brainsonchain/deepworm/src"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -21,6 +22,15 @@ func main() {
 	log.Info("logger initialized")
 
 	// -------------------------------------------------------------------------
+	// Create an ethclient
+
+	log.Info("creating ethclient")
+	ethclient, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
+	if err != nil {
+		log.Sugar().Fatalf("error creating ethclient: %v", err)
+	}
+
+	// -------------------------------------------------------------------------
 	// Create an error channel to catch errors from the goroutines
 	log.Info("creating error channel")
 	errChan := make(chan error)
@@ -28,7 +38,7 @@ func main() {
 	// -------------------------------------------------------------------------
 	// Create a worm PriceFetcher instance
 	log.Info("creating worm price fetcher")
-	wormPriceFetcher := src.NewPriceFetcher(src.WormAddr)
+	wormPriceFetcher := src.NewPriceFetcher(log, src.WormAddr)
 	go func() {
 		errChan <- wormPriceFetcher.Fetch()
 	}()
@@ -36,7 +46,7 @@ func main() {
 	// -------------------------------------------------------------------------
 	// Create a worm EventFetcher instance
 	log.Info("creating worm event fetcher")
-	wormEventFetcher := src.NewEventFetcher()
+	wormEventFetcher := src.NewEventFetcher(log, ethclient)
 	go func() {
 		errChan <- wormEventFetcher.Fetch()
 	}()
@@ -44,7 +54,7 @@ func main() {
 	// -------------------------------------------------------------------------
 	// Run the worm
 	log.Info("creating worm")
-	worm := src.NewWorm()
+	worm := src.NewWorm(log, ethclient)
 	go worm.Run(wormPriceFetcher, wormEventFetcher)
 
 	// -------------------------------------------------------------------------
