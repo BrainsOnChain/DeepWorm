@@ -19,10 +19,10 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"math/big"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -38,15 +38,12 @@ const (
 )
 
 type Worm struct {
-	cworm     *C.Worm
-	mu        *sync.Mutex
-	positions []position
+	cworm *C.Worm
 }
 
 func NewWorm() *Worm {
 	return &Worm{
 		cworm: C.Worm_Worm(),
-		mu:    &sync.Mutex{},
 	}
 }
 
@@ -54,7 +51,7 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 	defer C.Worm_destroy(w.cworm) // Ensure proper cleanup
 	var p position
 
-	privateKeyBytes, err := ioutil.ReadFile("/app/secp.sec")
+	privateKeyBytes, err := os.ReadFile("/app/secp.sec")
 	if err != nil {
 		zap.S().Errorw("Failed to read private key file", "error", err)
 		return
@@ -90,7 +87,6 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 		intChange := int(priceChange * magnification)
 		zap.S().Infow("price change", "change", intChange)
 
-		w.mu.Lock()
 		adX, adY := 0.0, 0.0
 		var leftMuscle, rightMuscle float64
 		for i := 0; i < intChange; i++ {
@@ -108,9 +104,7 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 			dX, dY := p.update(angle, magnitude)
 			adX += dX
 			adY += dY
-			// w.positions = append(w.positions, p)
 		}
-		w.mu.Unlock()
 
 		client, err := ethclient.Dial("https://api.hyperliquid-testnet.xyz/evm")
 		if err != nil {
@@ -126,7 +120,8 @@ func (w *Worm) Run(fetcher *priceFetcher, mu *sync.Mutex) {
 			encodeInt(time.Now().Unix()),
 			encode(leftMuscle),
 			encode(rightMuscle),
-			encode(currentPrice.priceUSD*magnification))
+			encode(currentPrice.priceUSD*magnification),
+		)
 		data := common.FromHex(calldata)
 
 		nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
@@ -184,13 +179,6 @@ func encode(num float64) string {
 	}
 
 	return fmt.Sprintf("%064x", bignum)
-}
-
-func (w *Worm) Positions() []position {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	return w.positions
 }
 
 // -----------------------------------------------------------------------------
